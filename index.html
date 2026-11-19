@@ -641,6 +641,19 @@ function scheduleRender(){ if(isEditing()){renderPending=true;return;} render();
 document.addEventListener('focusout',()=>setTimeout(()=>{if(renderPending&&!isEditing()){renderPending=false;render();}},50));
 const KEYS=['settings','pool','teams','roster','lineups','tours','txns','rankings','news','odds','claims','waiv','dlog','photos','trades'];
 let loadTimer;
+
+// Odds, news and tour lists: the newest of the league database copy and the repo's data/*.json files wins
+const SIDE={cur:{},
+  set:{
+    pgatour:x=>{S.pga=x?lookup(Object.fromEntries([...(x.members||[]),...(x.kft||[]),...(x.dpwtCard||[])].map(n=>[n,1]))):null;S.pgaInfo=x;},
+    dpwt:x=>{x=x||{};S.dpwt=lookup(Object.fromEntries((x.players||[]).map(n=>[n,1])));S.dpwtCard=lookup(Object.fromEntries((x.pgaCard||[]).map(n=>[n,1])));S.dpwtInfo=x;},
+    news:x=>{S.news=x?(x.items||{}):{};S.newsAt=x?x.updatedAt:null;},
+    odds:x=>{S.oddsLatest=x||null;}},
+  apply(k,x,src){const c=this.cur[k];const t=x&&+x.updatedAt||0;
+    if(c&&x&&c.t>t&&c.src!==src)return; if(!x&&c&&c.src!==src)return;
+    this.cur[k]={t,src};this.set[k](x);scheduleRender();},
+  poll(){['odds','news','pgatour','dpwt'].forEach(k=>fetch('data/'+k+'.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():null).then(x=>{if(x)SIDE.apply(k,x,'file');}).catch(()=>{}));}
+};
 function mark(k){S.loaded[k]=true;if(KEYS.every(x=>S.loaded[x])&&!S.ready){S.ready=true;clearTimeout(loadTimer);setTimeout(tryImport,300);}scheduleRender();}
 function onErr(e){S.err=(e&&e.message)||'Could not reach the league data.';clearTimeout(loadTimer);S.ready=true;scheduleRender();}
 
@@ -710,10 +723,11 @@ async function init(){
   db.doc('league/settings').onSnapshot(s=>{S.settings=s.exists?s.data():null;mark('settings')},onErr);
   db.doc('league/pool').onSnapshot(s=>{S.pool=s.exists?(s.data().golfers||[]):[];S.extras=s.exists?(s.data().extras||[]):[];mark('pool')},onErr);
   db.collection('rankings').onSnapshot(q=>{S.rk={meta:null,chunks:[]};q.docs.forEach(d=>{if(d.id==='meta')S.rk.meta=d.data();else S.rk.chunks.push([d.id,d.data().players||[]]);});rebuildRK();mark('rankings')},onErr);
-  db.doc('league/pgatour').onSnapshot(sn=>{const x=sn.exists?sn.data():null;S.pga=x?lookup(Object.fromEntries([...(x.members||[]),...(x.kft||[]),...(x.dpwtCard||[])].map(n=>[n,1]))):null;S.pgaInfo=x;scheduleRender();},()=>{});
-  db.doc('league/dpwt').onSnapshot(sn=>{const x=sn.exists?sn.data():{};S.dpwt=lookup(Object.fromEntries((x.players||[]).map(n=>[n,1])));S.dpwtCard=lookup(Object.fromEntries((x.pgaCard||[]).map(n=>[n,1])));S.dpwtInfo=x;scheduleRender();},()=>{});
-  db.doc('league/news').onSnapshot(s=>{S.news=s.exists?(s.data().items||{}):{};S.newsAt=s.exists?s.data().updatedAt:null;mark('news')},onErr);
-  db.doc('league/odds').onSnapshot(s=>{S.oddsLatest=s.exists?s.data():null;mark('odds')},onErr);
+  db.doc('league/pgatour').onSnapshot(sn=>{SIDE.apply('pgatour',sn.exists?sn.data():null,'db');},()=>{});
+  db.doc('league/dpwt').onSnapshot(sn=>{SIDE.apply('dpwt',sn.exists?sn.data():null,'db');},()=>{});
+  db.doc('league/news').onSnapshot(s=>{SIDE.apply('news',s.exists?s.data():null,'db');mark('news')},onErr);
+  db.doc('league/odds').onSnapshot(s=>{SIDE.apply('odds',s.exists?s.data():null,'db');mark('odds')},onErr);
+  SIDE.poll();setInterval(SIDE.poll,20*60*1000);
   db.collection('teams').onSnapshot(q=>{S.teams={};q.docs.forEach(d=>S.teams[d.id]={...d.data(),id:d.id});mark('teams')},onErr);
   db.collection('trades').onSnapshot(q=>{S.trades={};q.docs.forEach(d=>S.trades[d.id]={...d.data(),id:d.id});mark('trades');},onErr);
   db.collection('photos').onSnapshot(q=>{S.photos={};q.docs.forEach(d=>{const x=d.data();if(x&&x.img)S.photos[d.id]=x.img;});mark('photos');},onErr);
