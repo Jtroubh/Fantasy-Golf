@@ -2084,11 +2084,11 @@ function showPlayer(n){
    ${(()=>{const lt=tcLiveTour(n),u=lt&&tcUrl(lt,n);return u?`<a class="btn" href="${esc(u)}" target="_blank" rel="noopener" style="display:flex;justify-content:center;align-items:center;gap:8px;margin:12px 0 4px;text-decoration:none">📺 Watch live on TOURCast <span class="small" style="opacity:.8">· ${esc(short(lt.name))}</span> ↗</a>`:'';})()}
    ${(()=>{const rows=playerLog(n),mode=UI.trendMode||'pos';
      const past=rows.filter(r=>r.hasScores),fut=rows.filter(r=>!r.hasScores).slice(0,4);
-     const tr=r=>`<tr${r.hasScores?'':' class="dim"'}><td class="small" style="white-space:nowrap">${esc(fmtDates(r.t).replace(/, \d{4}$/,''))}</td><td>${esc(r.t.name)}${r.t.major?' <span class="badge">Major</span>':isSig(r.t)?' <span class="badge">Sig</span>':''}</td>
+     const tr=r=>`<tr${r.hasScores?'':' class="dim"'}><td class="small" style="white-space:nowrap">${esc(fmtDates(r.t).replace(/, \d{4}$/,''))}</td><td>${esc(r.t.name)}${r.hasScores&&!r.fin?' <span class="badge live">Live</span>':''}${r.t.major?' <span class="badge">Major</span>':isSig(r.t)?' <span class="badge">Sig</span>':''}</td>
        <td class="num">${r.hasScores?(r.mc?'<span class="muted">MC</span>':r.pos?`${r.tied?'T':''}${r.pos}`:(r.inField===false?'<span class="muted">—</span>':'<span class="muted">DNP</span>')):(r.inField?'<span class="small">In field</span>':'<span class="muted">—</span>')}</td>
        <td class="num ${r.toPar!=null?scls(r.toPar):''}">${r.toPar!=null?fmt(r.toPar):r.mc?'<span class="muted">MC</span>':'<span class="muted">—</span>'}</td>
        <td class="small">${r.team?esc(teamName(r.team)):r.hasScores?'<span class="muted">Not started</span>':''}</td></tr>`;
-     return `<h3 style="margin-top:14px">Game log</h3><div class="scroll"><table style="font-size:13px"><tr><th>Date</th><th>Event</th><th class="num">Pos</th><th class="num">To par</th><th>Started by</th></tr>${[...past.slice().reverse(),...fut].map(tr).join('')||'<tr><td colspan="5" class="muted">No league events yet.</td></tr>'}</table></div>
+     return `<h3 style="margin-top:14px">Game log</h3><div class="scroll"><table style="font-size:13px"><tr><th>Date</th><th>Event</th><th class="num">Pos</th><th class="num">To par</th><th>Started by</th></tr>${[...past,...fut].map(tr).join('')||'<tr><td colspan="5" class="muted">No league events yet.</td></tr>'}</table></div>
      <div class="row" style="justify-content:space-between;align-items:center;margin-top:14px"><h3 style="margin:0">Trend</h3><div class="row" style="gap:4px"><button class="${mode==='pos'?'':'ghost'} sm" id="trPos">Finish</button><button class="${mode==='par'?'':'ghost'} sm" id="trPar">Score to par</button></div></div>
      ${trendSvg(past,mode)}`;})()}
    <h3>News</h3>
