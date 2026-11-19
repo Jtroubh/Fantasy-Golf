@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function adminDoc() { return /databases/$(database)/documents/league/admins; }
+    function isAdmin() { return signedIn() && exists(adminDoc()) && request.auth.uid in get(adminDoc()).data.uids; }
+
+    // The first person to sign in becomes the commissioner (league manager).
+    match /league/admins {
+      allow read: if signedIn();
+      allow create: if signedIn() && !exists(adminDoc()) && request.resource.data.uids == [request.auth.uid];
+      allow update, delete: if isAdmin();
+    }
+    // League settings, news, odds, tour lists: commissioner only.
+    match /league/{doc} {
+      allow read: if signedIn();
+      allow write: if isAdmin() && doc != 'admins';
+    }
+    // Tournaments: commissioner edits; any signed-in member's browser may save live ESPN scores/field.
+    match /tournaments/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+      allow update: if signedIn() && request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['scores', 'holes', 'cutScore', 'scoresUpdated', 'scoresSource', 'field', 'fieldUpdated', 'fieldSource']);
+    }
+    match /rankings/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    match /photos/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    // Owner moves: rosters, lineups, waivers, trades, transactions, team names/photos.
+    match /{coll}/{id} {
+      allow read, write: if signedIn() && coll in ['teams', 'roster', 'lineups', 'claims', 'waivers', 'txns', 'trades', 'draftlog'];
+    }
+  }
+}
