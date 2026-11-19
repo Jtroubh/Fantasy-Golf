@@ -185,7 +185,8 @@ pre.msg{white-space:pre-wrap;background:#fff;border:1px solid var(--line);border
 .fa-t tr.grp th{font-size:11px;letter-spacing:.8px;border-bottom:1px solid var(--line);padding-bottom:2px;cursor:default}
 .fa-t th u{text-decoration:underline;text-underline-offset:3px}
 .fab{width:36px;height:36px;border-radius:18px;padding:0;font-size:20px;line-height:1;background:#e8a93a;color:#fff;border:none;font-weight:700}
-.fab.pend{width:auto;padding:0 10px;font-size:13px;background:var(--green2,#2e7d32)}
+.fab.fa-free{background:#2e8b3e}
+.fab.pend{width:auto;padding:0 10px;font-size:13px;background:#c98a1e}
 @media (max-width:700px){.fa-t tr.grp{display:none}.fa-t tr>:nth-child(4),.fa-t tr>:nth-child(9),.fa-t tr>:nth-child(11),.fa-t tr>:nth-child(12){display:none}.fa-t th,.fa-t td{padding:6px 5px}}
 
 .fa-filters{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin:6px 0 12px}
@@ -1467,7 +1468,7 @@ function viewFA(){
     if(onWaivers(x.n))return `<span title="On waivers until ${esc(fmtRun(waiverClears(x.n)))}">WA (${esc(new Date(waiverClears(x.n)).toLocaleDateString(undefined,{weekday:'short'}))})</span>`;return 'FA';};
   const actOf=x=>{const ow=x.own||ownerOf(x.n);if(ow||!editable)return '';
     if(onWaivers(x.n)){const pend=Object.values(S.claims).find(c=>c.status==='pending'&&c.teamId===tid&&slug(c.add)===slug(x.n));return `<button class="fab ${pend?'pend':''}" data-a="claim" data-n="${esc(x.n)}" title="${pend?'Edit your $'+pend.bid+' claim':'Put in a waiver claim'}">${pend?'$'+pend.bid:'+'}</button>`;}
-    return `<button class="fab" data-a="faAdd" data-n="${esc(x.n)}" title="Add ${esc(x.n)}">+</button>`;};
+    return `<button class="fab fa-free" data-a="faAdd" data-n="${esc(x.n)}" title="Free agent: add ${esc(x.n)} now">+</button>`;};
   const row=x=>{const tt=wkInfo?wkInfo.fm.get(x.n):null,o=wkInfo?wkInfo.om.get(x.n):null,L=lrOf(x.n),m=mvp[x.n],ls=lastOf(x.n),sv=wkSc?wkSc.get(x.n):undefined;
     const e=rkOf(x.n);const sub=e&&e.ctry?flagOf(e.ctry)+' '+esc(e.ctry):'';
     return `<tr><td><div class="plc">${av(x.n,34)}<div style="min-width:0"><div class="gname">${pn(x.n)}</div><div class="small muted">${sub}</div></div></div></td>
@@ -1488,7 +1489,7 @@ function viewFA(){
         ${wk?`<label class="ddl"><span>Show</span><select data-a="faWeek"><option value="week"${onlyWk?' selected':''}>Playing this week</option><option value="all"${onlyWk?'':' selected'}>All players</option></select></label>`:''}
         <label class="ddl" style="flex:1;min-width:200px"><span>Search</span><input data-a="faSearch" placeholder="Player name" value="${esc(UI.faSearch)}"></label>
       </div>
-      ${WV()?`<div class="small muted fa-note" style="margin-bottom:8px">Waivers run ${esc(fmtRun(nextRunAfter(Date.now())))} ET. Dropped players and golfers who've teed off this week are on waivers (WA) until then; free agents (FA) can be added instantly. You have <b>$${tid?wvLeft(tid):0}</b> to bid.</div>`:''}
+      ${WV()?`<div class="small muted fa-note" style="margin-bottom:8px">Waivers run ${esc(fmtRun(nextRunAfter(Date.now())))} ET. Dropped players and golfers who've teed off this week are on waivers (WA) until then; free agents (FA, green +) can be added instantly; yellow + puts in a claim. You have <b>$${tid?wvLeft(tid):0}</b> to bid.</div>`:''}
       ${wk?'':'<div class="muted small" style="margin-bottom:8px">Showing all players. Once this week\'s field is posted, you can switch to golfers who are playing.</div>'}
       <div class="muted small" style="margin-bottom:8px">${avail.length} ${({avail:'available golfers',wa:'golfers on waivers',free:'free agents',ros:'rostered golfers',all:'golfers'})[filt]}${onlyWk?` in the ${esc(wk.name)} field`:''} · sorted by ${so.k==='def'?(byOdds?'DraftKings odds':'world rank'):{owgr:'world rank',odds:'DraftKings odds',tee:'tee time',score:'score',prk:'league rank',ev:'events played',avg:'avg vs field',mvp:'MVP points',last:'last finish',name:'name'}[so.k]} · click a column to sort</div>
       <div class="scroll"><table class="fa-t">
