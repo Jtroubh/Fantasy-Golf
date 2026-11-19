@@ -2142,11 +2142,10 @@ function showPlayer(n){
      <div><div class="lbl">${t?esc(short(t.name))+' odds':'Next odds'}</div><div class="stat">${od?esc(od):'—'}</div></div>
      <div><div class="lbl">MVP pts</div><div class="stat">${m?fp(m.pts):'0'}</div></div>
    </div>
-   ${(()=>{const L=lrOf(n),T=leagueRanks();const st=playerLog(n).filter(r=>r.hasScores),stN=st.filter(r=>r.team).length;
+   ${(()=>{const L=lrOf(n),T=leagueRanks();
      return `<div class="kpis" style="margin:0 0 14px">
      <div><div class="lbl">League rank</div><div class="stat">${L&&L.rank?'#'+L.rank:'—'}</div><div class="small muted">${L&&L.rank?'of '+T.total+' ranked':L?'Needs '+T.minEv+' league events':'No league events played'}</div></div>
-     <div><div class="lbl">Avg vs field</div><div class="stat ${L?(L.avg>0?'under':L.avg<0?'over':''):''}">${L?fmtVs(L.avg):'—'}</div><div class="small muted">${L?'strokes/event · '+L.ev+' event'+(L.ev===1?'':'s'):''}</div></div>
-     <div><div class="lbl">Started</div><div class="stat">${stN} / ${st.length}</div><div class="small muted">league events</div></div></div>`;})()}
+     <div><div class="lbl">Avg vs field</div><div class="stat ${L?(L.avg>0?'under':L.avg<0?'over':''):''}">${L?fmtVs(L.avg):'—'}</div><div class="small muted">${L?'strokes/event · '+L.ev+' event'+(L.ev===1?'':'s'):''}</div></div></div>`;})()}
    <p class="small">${o?`On <b>${esc(teamName(o))}</b>`:'<b>Free agent</b>'}</p>
    ${notPGA(n)?`<p class="small"><b>Not a PGA Tour member</b> — he isn't in the ${S.pgaInfo?.season||''} FedExCup standings or among next season's Korn Ferry / DP World Tour graduates, so he'll rarely (if ever) be in the field for league events.</p>`:''}
    ${isDP(n)?`<p class="small muted">Plays mainly on the DP World Tour (16+ starts in the ${S.dpwtInfo?.season||''} Race to Dubai), so he'll only show up in PGA Tour events now and then.${S.dpwtCard&&S.dpwtCard.has(n)?' <b>In line for a PGA Tour card next season</b> (top 10 in the Race to Dubai).':''}</p>`:''}
