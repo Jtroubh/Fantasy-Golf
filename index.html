@@ -198,6 +198,18 @@ pre.msg{white-space:pre-wrap;background:#fff;border:1px solid var(--line);border
 
 .xclose{width:40px;height:40px;border-radius:20px;padding:0;border:none;background:transparent;color:var(--ink,#222);font-size:24px;line-height:1;flex:none;cursor:pointer;position:sticky;top:0}
 .xclose:hover{background:rgba(0,0,0,.06)}
+
+#modal .box{position:relative}
+.pc-head{padding-right:44px}
+.xclose{position:absolute!important;top:10px;right:10px;z-index:2}
+@media (max-width:600px){
+  #modal .box .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px 10px;border:1px solid var(--line);border-radius:12px;padding:12px;margin:12px 0!important}
+  #modal .box .kpis .stat{font-size:24px}
+  #modal .box .kpis .lbl{font-size:10px;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #modal .box .kpis .small{font-size:11px}
+  .pc-head h2{font-size:22px}
+  .tc-ev{display:none}
+}
 </style>
 </head>
 <body>
@@ -2124,7 +2136,7 @@ function showPlayer(n){
   const e=rkOf(n),o=ownerOf(n),x=newsOf(n),t=nextTour(),od=t?oddsMap(t).get(slug(n)):null,{mvp}=season(),m=mvp[n];
   const d=e&&e.lw!=null?e.lw-e.rank:0;
   const q=encodeURIComponent('"'+n+'" golf');
-  modal(`<div class="row" style="justify-content:space-between;align-items:flex-start"><div class="plc" style="gap:14px">${isComm?`<label style="position:relative;cursor:pointer" title="Upload a photo">${av(n,64)}<span style="position:absolute;right:-4px;top:-4px;width:24px;height:24px;border-radius:12px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:12px">📷</span><input type="file" accept="image/*" data-pphoto="${esc(n)}" style="display:none"></label>`:av(n,64)}<div><h2>${esc(n)}${e?.am?' <span class="badge am" style="vertical-align:middle">AMATEUR</span>':''}${isDP(n)?' <span class="badge dp" style="vertical-align:middle">DP WORLD TOUR</span>':''}${notPGA(n)&&!isDP(n)&&!rkOf(n)?.am&&!['majors','nopga'].includes(newsOf(n)?.status)?' <span class="badge bad" style="vertical-align:middle">NO PGA TOUR</span>':''}</h2><div class="muted small">${flagOf(e?.ctry)} ${esc(e?.ctry||'')}${isComm&&S.photos[slug(n)]?` · <a href="#" id="pphRm">remove photo</a>`:''}</div></div></div><button class="xclose" id="cClose" aria-label="Close" title="Close">✕</button></div>
+  modal(`<div class="pc-head"><div class="plc" style="gap:14px">${isComm?`<label style="position:relative;cursor:pointer" title="Upload a photo">${av(n,64)}<span style="position:absolute;right:-4px;top:-4px;width:24px;height:24px;border-radius:12px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:12px">📷</span><input type="file" accept="image/*" data-pphoto="${esc(n)}" style="display:none"></label>`:av(n,64)}<div><h2>${esc(n)}${e?.am?' <span class="badge am" style="vertical-align:middle">AMATEUR</span>':''}${isDP(n)?' <span class="badge dp" style="vertical-align:middle">DP WORLD TOUR</span>':''}${notPGA(n)&&!isDP(n)&&!rkOf(n)?.am&&!['majors','nopga'].includes(newsOf(n)?.status)?' <span class="badge bad" style="vertical-align:middle">NO PGA TOUR</span>':''}</h2><div class="muted small">${flagOf(e?.ctry)} ${esc(e?.ctry||'')}${isComm&&S.photos[slug(n)]?` · <a href="#" id="pphRm">remove photo</a>`:''}</div></div></div></div><button class="xclose" id="cClose" aria-label="Close" title="Close">✕</button>
    <div class="kpis" style="margin:14px 0">
      <div><div class="lbl">World rank</div><div class="stat">${e?'#'+e.rank:'NR'}</div><div class="small">${e&&e.lw!=null?(d>0?`<span class="mv-up">▲ ${d} from last week</span>`:d<0?`<span class="mv-dn">▼ ${-d} from last week</span>`:'No change'):''}</div></div>
      <div><div class="lbl">${t?esc(short(t.name))+' odds':'Next odds'}</div><div class="stat">${od?esc(od):'—'}</div></div>
@@ -2138,7 +2150,7 @@ function showPlayer(n){
    <p class="small">${o?`On <b>${esc(teamName(o))}</b>`:'<b>Free agent</b>'}</p>
    ${notPGA(n)?`<p class="small"><b>Not a PGA Tour member</b> — he isn't in the ${S.pgaInfo?.season||''} FedExCup standings or among next season's Korn Ferry / DP World Tour graduates, so he'll rarely (if ever) be in the field for league events.</p>`:''}
    ${isDP(n)?`<p class="small muted">Plays mainly on the DP World Tour (16+ starts in the ${S.dpwtInfo?.season||''} Race to Dubai), so he'll only show up in PGA Tour events now and then.${S.dpwtCard&&S.dpwtCard.has(n)?' <b>In line for a PGA Tour card next season</b> (top 10 in the Race to Dubai).':''}</p>`:''}
-   ${(()=>{const lt=tcLiveTour(n),u=lt&&tcUrl(lt,n);return u?`<a class="btn" href="${esc(u)}" target="_blank" rel="noopener" style="display:flex;justify-content:center;align-items:center;gap:8px;margin:12px 0 4px;text-decoration:none">📺 Watch live on TOURCast <span class="small" style="opacity:.8">· ${esc(short(lt.name))}</span> ↗</a>`:'';})()}
+   ${(()=>{const lt=tcLiveTour(n),u=lt&&tcUrl(lt,n);return u?`<a class="btn" href="${esc(u)}" target="_blank" rel="noopener" style="display:flex;justify-content:center;align-items:center;gap:8px;margin:12px 0 4px;text-decoration:none">📺 Watch live on TOURCast <span class="small tc-ev" style="opacity:.8">· ${esc(short(lt.name))}</span> ↗</a>`:'';})()}
    ${(()=>{const rows=playerLog(n),mode=UI.trendMode||'pos';
      const past=rows.filter(r=>r.hasScores),fut=rows.filter(r=>!r.hasScores).slice(0,4);
      const tr=r=>`<tr${r.hasScores?'':' class="dim"'}><td class="small" style="white-space:nowrap">${esc(fmtDates(r.t).replace(/, \d{4}$/,''))}</td><td>${esc(r.t.name)}${r.hasScores&&!r.fin?' <span class="badge live">Live</span>':''}${r.t.major?' <span class="badge">Major</span>':isSig(r.t)?' <span class="badge">Sig</span>':''}</td>
