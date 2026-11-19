@@ -418,6 +418,22 @@ function lockAt(t,n){
 }
 const isLockedFor=(t,n)=>{const a=lockAt(t,n);return a!=null&&Date.now()>=a;};
 const scoreLookup=t=>lookup(t.scores||{});
+
+// PGA TOUR TOURCast links (player ids + tournament numbers from data/tourcast.json)
+const TC={players:null,events:{}};
+fetch('data/tourcast.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():null).then(j=>{if(j){TC.players=lookup(j.players||{});TC.events=j.events||{};scheduleRender();}}).catch(()=>{});
+function tcEventNo(t){if(!t)return null;if(t.tcId)return String(t.tcId);
+  const w=x=>String(x||'').toLowerCase().replace(/&/g,' ').replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(v=>v&&!['the','of','in','presented','by','championship','tournament','open','classic','invitational','pga','tour','golf'].includes(v));
+  const a=new Set(w(t.name));let best=null,bs=0;
+  for(const [name,no] of Object.entries(TC.events)){const b=w(name);const hit=b.filter(v=>a.has(v)).length;const sc=b.length?hit/Math.max(b.length,a.size):0;if(hit&&sc>bs){bs=sc;best=no;}}
+  if(!best){const raw=x=>String(x||'').toLowerCase().replace(/[^a-z0-9]/g,'');const k=raw(t.name);for(const [name,no] of Object.entries(TC.events))if(raw(name)===k)return no;}
+  return best;}
+function tcLiveTour(n){return allTours().filter(t=>used(t)&&t.status!=='final'&&started(t)).find(t=>{const f=fieldOf(t);return f?f.has(n):scoreLookup(t).has(n);})||null;}
+function tcUrl(t,n){const no=tcEventNo(t);if(!no)return null;const yr=String(t.date||'').slice(0,4)||String(new Date().getFullYear());
+  const base=`https://tourcast.pgatour.com/tourcast.html?id=R${yr}${no}`;const pid=TC.players&&TC.players.get(n);if(!pid)return base;
+  const hp=lookup(t.holes||{}).get(n)||0;const rd=Math.min(4,Math.floor(Math.max(0,hp-1)/18)+1);const thru=hp?((hp-1)%18)+1:1;
+  return `${base}#/hole-view?pid=${pid}&round=${rd}&hole=${thru}&gv=false`;}
+function tcLink(t,n,label){const u=t&&tcUrl(t,n);return u?`<a href="${esc(u)}" target="_blank" rel="noopener" title="Watch ${esc(n)} on PGA TOUR TOURCast" onclick="event.stopPropagation()">${label}</a>`:label;}
 function holesLeft(t,n){const v=scoreLookup(t).get(n);if(v==='MC')return 0;const hp=lookup(t.holes||{}).get(n);if(hp===undefined)return t.status==='final'?0:72;return Math.max(0,72-hp);}
 function teamHolesLeft(t,row){return row.starters.filter(s=>!s.empty).reduce((a,s)=>a+holesLeft(t,s.name),0);}
 const oddsProb=o=>{const n=parseInt(String(o).replace('+',''),10);if(isNaN(n))return 0;return n>0?100/(n+100):(-n)/(-n+100);};
@@ -1209,7 +1225,7 @@ function sbDetail(t,x){
     const hl=holesLeft(t,s.name),hp=72-hl;
     const sc=s.raw==='MC'?`<span class="${scls(mc)}">${fmt(mc)}</span> <span class="small muted">(MC)</span>`:s.raw==null?'<span class="muted">–</span>':`<span class="${scls(s.raw)}">${fmt(s.raw)}</span>`;
     const hk=lookup(t.holes||{}).get(s.name);const st=s.raw==='MC'?'<span class="muted">Cut</span>':hk===undefined?(fin?'<span class="muted">F</span>':(s.raw==null?'<span class="muted">Not started</span>':'<span class="muted">–</span>')):hl===0?'<span class="muted">F</span>':hp===0?'<span class="muted">Not started</span>':`${hl} <span class="small muted">(R${Math.ceil(hp/18)} ${hp%18?'thru '+hp%18:'done'})</span>`;
-    return `<tr${s.counts?'':' style="opacity:.6"'}><td><div class="plc">${av(s.name,26)}${esc(s.name)}${rkOf(s.name)?.am?' <span class="badge am">AM</span>':''}</div></td><td>${rkTag(s.name)}</td><td class="num">${sc}</td><td class="num">${st}</td><td>${s.counts?'<span class="badge final">counts</span>':''}</td><td class="num"><b>${s.counts?fp(s.mvp||0):'<span class="muted">0</span>'}</b></td></tr>`;}).join('');
+    return `<tr${s.counts?'':' style="opacity:.6"'}><td><div class="plc">${av(s.name,26)}${fin?esc(s.name):tcLink(t,s.name,esc(s.name)+' <span class="small muted">📺</span>')}${rkOf(s.name)?.am?' <span class="badge am">AM</span>':''}</div></td><td>${rkTag(s.name)}</td><td class="num">${sc}</td><td class="num">${st}</td><td>${s.counts?'<span class="badge final">counts</span>':''}</td><td class="num"><b>${s.counts?fp(s.mvp||0):'<span class="muted">0</span>'}</b></td></tr>`;}).join('');
   return `<tr class="sbdet"><td></td><td colspan="5" style="padding:4px 0 12px"><table class="inner" style="width:100%;font-size:.92em;background:var(--bg2,rgba(0,0,0,.03));border-radius:8px"><tr><th>Golfer</th><th>OWGR</th><th class="num">Score</th><th class="num">${fin?'Status':'Holes left'}</th><th>Top ${COUNT()}</th><th class="num">${fin?'MVP pts':'Proj. MVP'}</th></tr>${rows}</table></td></tr>`;
 }
 function _oldLiveCard(t){
@@ -2021,6 +2037,7 @@ function showPlayer(n){
    <p class="small">${o?`On <b>${esc(teamName(o))}</b>`:'<b>Free agent</b>'}</p>
    ${notPGA(n)?`<p class="small"><b>Not a PGA Tour member</b> — he isn't in the ${S.pgaInfo?.season||''} FedExCup standings or among next season's Korn Ferry / DP World Tour graduates, so he'll rarely (if ever) be in the field for league events.</p>`:''}
    ${isDP(n)?`<p class="small muted">Plays mainly on the DP World Tour (16+ starts in the ${S.dpwtInfo?.season||''} Race to Dubai), so he'll only show up in PGA Tour events now and then.${S.dpwtCard&&S.dpwtCard.has(n)?' <b>In line for a PGA Tour card next season</b> (top 10 in the Race to Dubai).':''}</p>`:''}
+   ${(()=>{const lt=tcLiveTour(n),u=lt&&tcUrl(lt,n);return u?`<a class="btn" href="${esc(u)}" target="_blank" rel="noopener" style="display:flex;justify-content:center;align-items:center;gap:8px;margin:12px 0 4px;text-decoration:none">📺 Watch live on TOURCast <span class="small" style="opacity:.8">· ${esc(short(lt.name))}</span> ↗</a>`:'';})()}
    ${(()=>{const rows=playerLog(n),mode=UI.trendMode||'pos';
      const past=rows.filter(r=>r.hasScores),fut=rows.filter(r=>!r.hasScores).slice(0,4);
      const tr=r=>`<tr${r.hasScores?'':' class="dim"'}><td class="small" style="white-space:nowrap">${esc(fmtDates(r.t).replace(/, \d{4}$/,''))}</td><td>${esc(r.t.name)}${r.t.major?' <span class="badge">Major</span>':isSig(r.t)?' <span class="badge">Sig</span>':''}</td>
