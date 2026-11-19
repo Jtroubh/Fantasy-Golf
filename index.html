@@ -6,7 +6,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=2"></script>
+<script src="config.js?v=3"></script>
 <title>Fantasy Golf League</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -187,6 +187,7 @@ pre.msg{white-space:pre-wrap;background:#fff;border:1px solid var(--line);border
 <main id="main"><div class="empty">Loading league…</div></main>
 <div id="modal" hidden><div class="box" id="mbox"></div></div>
 <div id="toast"></div>
+<input type="file" id="impFile" accept=".json,application/json" data-import="1" style="display:none">
 
 <script>
 /* ================= Pure scoring logic ================= */
@@ -1472,7 +1473,7 @@ function lmEvents(){
   ${schedulePicker()}
   ${newTourForm()}`;
 }
-function importCard(){return `<div class="card" style="border-top:4px solid var(--green2)"><h3>Import league data</h3><p class="small muted">Load the file exported from the Claude version of the league (LM Tools → Export league data). Everything is copied in: teams, rosters, draft, lineups, events and results, waivers, trades and photos. Importing again overwrites with the file's data.</p><label class="btn" style="display:inline-block;cursor:pointer">⬆ Choose export file<input type="file" accept=".json,application/json" data-import="1" style="display:none"></label> <span class="small muted" id="impMsg"></span></div>`;}
+function importCard(){return `<div class="card" style="border-top:4px solid var(--green2)"><h3>Import league data</h3><p class="small muted">Load the file exported from the Claude version of the league (LM Tools → Export league data). Everything is copied in: teams, rosters, draft, lineups, events and results, waivers, trades and photos. Importing again overwrites with the file's data.</p><button onclick="document.getElementById('impFile').click()">⬆ Choose export file</button> <span class="small muted" id="impMsg"></span></div>`;}
 function viewSetup(){
   const s=ST(),o=order(),N=o.length;
   const rules=`<div class="card"><h3>Scoring rules</h3><ul class="small" style="margin:0;padding-left:18px">
@@ -1571,7 +1572,7 @@ document.addEventListener('change',e=>{
 });
 document.addEventListener('change',async e=>{
   const imp=e.target.closest&&e.target.closest('input[data-import]');
-  if(imp&&imp.files&&imp.files[0]){const f=imp.files[0];imp.value='';if(!isComm){toast('Only the commissioner can import');return;}
+  if(imp&&imp.files&&imp.files[0]){const f=imp.files[0];imp.value="";toast("Reading "+f.name+"…");if(!isComm){toast('Only the commissioner can import');return;}
     try{const data=JSON.parse(await f.text());const C=data.collections||{};const jobs=[];
       for(const [c,docs] of Object.entries(C))for(const [id,d] of Object.entries(docs||{})){if(c==='league'&&id==='admins')continue;jobs.push([c+'/'+id,d]);}
       if(!jobs.length){toast('That file has no league data');return;}
