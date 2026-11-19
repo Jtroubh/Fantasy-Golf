@@ -456,6 +456,25 @@ function lineupNames(t,tid){
   }
   return teamRoster(tid).filter(r=>!fm||fm.has(r.name)).slice(0,STARTERS()).map(r=>r.name);
 }
+
+// League rank: average strokes beaten vs the field in completed league events (majors/signature weighted), min 2 events
+const LRC={key:null,map:null,list:[]};
+function leagueRanks(){
+  const ev=tours().filter(t=>used(t)&&t.status==='final'&&Object.keys(t.scores||{}).length);
+  const key=ev.map(t=>t.id+':'+(t.scoresUpdated||0)).join('|');
+  if(LRC.key===key&&LRC.map)return LRC;
+  const acc={};
+  for(const t of ev){const cs=cutScore(t),wt=evMult(t);
+    const vals=Object.entries(t.scores).map(([n,v])=>[n,v==='MC'?cs:(typeof v==='number'?v:null)]).filter(x=>x[1]!=null);
+    if(vals.length<10)continue;const avg=vals.reduce((a,x)=>a+x[1],0)/vals.length;
+    for(const [n,v] of vals){const a=acc[n]||(acc[n]={n,sum:0,w:0,ev:0});a.sum+=(avg-v)*wt;a.w+=wt;a.ev++;}}
+  const rows=Object.values(acc).map(a=>({n:a.n,avg:a.sum/a.w,ev:a.ev}));
+  const minEv=Math.min(2,ev.length);const ranked=rows.filter(r=>r.ev>=minEv).sort((a,b)=>b.avg-a.avg);
+  ranked.forEach((r,i)=>{r.rank=(i&&Math.abs(ranked[i-1].avg-r.avg)<1e-9)?ranked[i-1].rank:i+1;});
+  const all={};rows.forEach(r=>all[r.n]=r);
+  LRC.key=key;LRC.map=lookup(all);LRC.list=ranked;LRC.total=ranked.length;LRC.events=ev.length;LRC.minEv=minEv;return LRC;}
+const lrOf=n=>leagueRanks().map.get(n)||null;
+const fmtVs=v=>v==null?'—':(v>0?'+':v<0?'−':'')+Math.abs(v).toFixed(1);
 function cutScore(t){
   if(typeof t.cutScore==='number') return t.cutScore;
   const nums=Object.values(t.scores||{}).filter(v=>typeof v==='number');
@@ -1404,17 +1423,20 @@ function viewFA(){
   const byOdds=!!(wkInfo&&Object.keys(wk.odds||{}).length);
   if(byOdds){const pr=o=>{const v=parseInt(String(o||'').replace(/[^0-9+-]/g,''),10);if(isNaN(v))return -1;return v>0?100/(v+100):(-v)/(-v+100);};
     avail=avail.map(x=>({...x,_p:pr(wkInfo.om.get(x.n))})).sort((a,b)=>b._p-a._p||a.i-b.i);}
+  const sortLR=UI.faSort==='lr';
+  if(sortLR){avail=avail.map(x=>({...x,_lr:(lrOf(x.n)||{}).rank||1e6})).sort((a,b)=>a._lr-b._lr||a.i-b.i);}
   const faBtn=x=>{const ow=x.own||ownerOf(x.n);if(ow)return `<span class="badge${ow===tid?' me':''}" style="white-space:nowrap">${esc(teamName(ow))}</span>`;if(!editable)return '';if(onWaivers(x.n)){const pend=Object.values(S.claims).find(c=>c.status==='pending'&&c.teamId===tid&&slug(c.add)===slug(x.n));return `<span class="badge bad" title="On waivers until ${esc(fmtRun(waiverClears(x.n)))}">Waivers</span> <button class="sm ${pend?'ghost':''}" data-a="claim" data-n="${esc(x.n)}">${pend?'$'+pend.bid+' claim':'Claim'}</button>`;}return `<button class="sm" data-a="faAdd" data-n="${esc(x.n)}">Add</button>`;};
   const row=x=>{const tt=wkInfo?wkInfo.fm.get(x.n):null,o=wkInfo?wkInfo.om.get(x.n):null;
-    const meta=[RK.list.length?rkTag(x.n):`#${x.i+1}`,tt?`<span class="tee">${esc(tt)}</span>`:'',o?`<span class="odds">${esc(o)}</span>`:''].filter(Boolean).join(' <span class="muted">·</span> ');
+    const L=lrOf(x.n);const meta=[L&&L.rank?`<span title="League rank (avg ${fmtVs(L.avg)} vs field over ${L.ev} events)"><b>LR #${L.rank}</b></span>`:'',RK.list.length?rkTag(x.n):`#${x.i+1}`,tt?`<span class="tee">${esc(tt)}</span>`:'',o?`<span class="odds">${esc(o)}</span>`:''].filter(Boolean).join(' <span class="muted">·</span> ');
     return `<div class="it"><div class="plc" style="min-width:0">${av(x.n,34)}<div class="gi"><div class="gname">${pn(x.n)}</div> <div class="gmeta small muted">${meta}</div></div></div><span class="row" style="gap:6px;flex-wrap:nowrap;flex:none">${faBtn(x)}</span></div>`;};
   return `<div class="grid2">
     <div class="card"><div class="row" style="justify-content:space-between"><h3>Free agents</h3><span class="muted small">${tid?`${esc(teamName(tid))}: ${ros.length}/${ROSTER()}${full?' — adding requires a drop':''}`:''}</span></div>
       ${wk?`<div class="row" style="margin-bottom:10px;gap:6px"><button class="${onlyWk?'':'ghost'} sm" data-a="faMode" data-id="week">Playing this week: ${esc(wk.name)}</button><button class="${onlyWk?'ghost':''} sm" data-a="faMode" data-id="all">All players</button></div>`:'<div class="muted small" style="margin-bottom:8px">Showing all players. Once this week\'s field is posted, the list switches to golfers who are playing.</div>'}
       ${WV()?`<div class="small muted fa-note" style="margin-bottom:8px">Waivers run ${esc(fmtRun(nextRunAfter(Date.now())))} ET. Dropped players and golfers who've teed off this week are on waivers until then; everyone else is a free agent you can add instantly. You have <b>$${tid?wvLeft(tid):0}</b> to bid.</div>`:''}
       <div class="row" style="margin-bottom:10px;gap:6px">${[['fa','Free agents'],['ros','On rosters'],['all','All']].map(([k,l])=>`<button class="${own===k?'':'ghost'} sm" data-a="faOwn" data-id="${k}">${l}</button>`).join('')}</div>
+      <div class="row" style="margin-bottom:10px;gap:6px;align-items:center"><span class="small muted">Sort by</span><button class="${sortLR?'ghost':''} sm" data-a="faSort" data-id="def">${byOdds&&onlyWk?'DK odds':'World rank'}</button><button class="${sortLR?'':'ghost'} sm" data-a="faSort" data-id="lr" title="Average strokes beaten vs the field in league events (min 2 events)">League rank</button></div>
       <input data-a="faSearch" placeholder="Search golfers…" value="${esc(UI.faSearch)}" style="width:100%;margin-bottom:10px">
-      ${onlyWk?`<div class="muted small" style="margin-bottom:8px">${avail.length} ${own==='fa'?'free agents':own==='ros'?'rostered golfers':'golfers'} in the ${esc(wk.name)} field · sorted by ${byOdds?'DraftKings odds (no odds listed → by world rank)':'world rank'}</div>`:rankingsNote()}<div class="list">${avail.slice(0,UI.faLimit).map(row).join('')}${moreBtn('faLimit',Math.min(UI.faLimit,avail.length),avail.length)}${addToPoolBtn(UI.faSearch)}${!avail.length&&!addToPoolBtn(UI.faSearch)?'<div class="it muted">No free agents match.</div>':''}</div>
+      ${onlyWk?`<div class="muted small" style="margin-bottom:8px">${avail.length} ${own==='fa'?'free agents':own==='ros'?'rostered golfers':'golfers'} in the ${esc(wk.name)} field · sorted by ${sortLR?'league rank (unranked → by world rank)':byOdds?'DraftKings odds (no odds listed → by world rank)':'world rank'}</div>`:rankingsNote()}<div class="list">${avail.slice(0,UI.faLimit).map(row).join('')}${moreBtn('faLimit',Math.min(UI.faLimit,avail.length),avail.length)}${addToPoolBtn(UI.faSearch)}${!avail.length&&!addToPoolBtn(UI.faSearch)?'<div class="it muted">No free agents match.</div>':''}</div>
     </div>
     <div class="card"><h3>Recent transactions</h3>
       ${S.txns.length?`<table>${S.txns.map(x=>`<tr><td class="small muted" style="white-space:nowrap">${new Date(x.at).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</td><td><b>${esc(teamName(x.teamId))}</b> ${x.add?`added <b>${esc(x.add)}</b>`:''}${x.add&&x.drop?', ':''}${x.drop?`dropped ${esc(x.drop)}`:''}</td></tr>`).join('')}</table>`:'<div class="muted">No moves yet.</div>'}
@@ -1889,6 +1911,7 @@ const ACTIONS={
   },
   player(el,id,n){showPlayer(n);},
   sbTog(el,id,n){const k=id+'|'+n;UI.sbOpen.has(k)?UI.sbOpen.delete(k):UI.sbOpen.add(k);render();},
+  faSort(el,id){UI.faSort=id;UI.faLimit=150;render();},
   sbSort(el,id,n){const def={pos:1,score:1,holes:-1,pts:-1,season:-1};const c=UI.sbSort||{k:'pos',d:1};UI.sbSort=c.k===n?{k:n,d:-c.d}:{k:n,d:def[n]||1};render();},
   sbAll(el,id){const keys=computeTour(S.tours[id]).ranked.map(x=>id+'|'+x.tid);const all=keys.every(k=>UI.sbOpen.has(k));keys.forEach(k=>all?UI.sbOpen.delete(k):UI.sbOpen.add(k));render();},
   openTour(el,id){UI.tour=id;if(tab!=='tournaments'){tab='tournaments';location.hash='tournaments';}render();setTimeout(()=>{const d=document.querySelectorAll('.card')[isComm?2:1];d&&d.scrollIntoView({behavior:'smooth',block:'start'})},30);},
@@ -2040,6 +2063,11 @@ function showPlayer(n){
      <div><div class="lbl">${t?esc(short(t.name))+' odds':'Next odds'}</div><div class="stat">${od?esc(od):'—'}</div></div>
      <div><div class="lbl">MVP pts</div><div class="stat">${m?fp(m.pts):'0'}</div></div>
    </div>
+   ${(()=>{const L=lrOf(n),T=leagueRanks();const st=playerLog(n).filter(r=>r.hasScores),stN=st.filter(r=>r.team).length;
+     return `<div class="kpis" style="margin:0 0 14px">
+     <div><div class="lbl">League rank</div><div class="stat">${L&&L.rank?'#'+L.rank:'—'}</div><div class="small muted">${L&&L.rank?'of '+T.total+' ranked':L?'Needs '+T.minEv+' league events':'No league events played'}</div></div>
+     <div><div class="lbl">Avg vs field</div><div class="stat ${L?(L.avg>0?'under':L.avg<0?'over':''):''}">${L?fmtVs(L.avg):'—'}</div><div class="small muted">${L?'strokes/event · '+L.ev+' event'+(L.ev===1?'':'s'):''}</div></div>
+     <div><div class="lbl">Started</div><div class="stat">${stN} / ${st.length}</div><div class="small muted">league events</div></div></div>`;})()}
    <p class="small">${o?`On <b>${esc(teamName(o))}</b>`:'<b>Free agent</b>'}</p>
    ${notPGA(n)?`<p class="small"><b>Not a PGA Tour member</b> — he isn't in the ${S.pgaInfo?.season||''} FedExCup standings or among next season's Korn Ferry / DP World Tour graduates, so he'll rarely (if ever) be in the field for league events.</p>`:''}
    ${isDP(n)?`<p class="small muted">Plays mainly on the DP World Tour (16+ starts in the ${S.dpwtInfo?.season||''} Race to Dubai), so he'll only show up in PGA Tour events now and then.${S.dpwtCard&&S.dpwtCard.has(n)?' <b>In line for a PGA Tour card next season</b> (top 10 in the Race to Dubai).':''}</p>`:''}
