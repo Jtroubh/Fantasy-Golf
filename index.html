@@ -178,6 +178,15 @@ pre.msg{white-space:pre-wrap;background:#fff;border:1px solid var(--line);border
 .kpis .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:600}
 .lu .sea1{border-left:2px solid var(--line)}
 .lu tr.grp th{font-size:11px;letter-spacing:.8px;border-bottom:1px solid var(--line);padding-bottom:2px}
+
+.fa-t th,.fa-t td{padding:8px 10px}
+.fa-t td{vertical-align:middle}
+.fa-t .sea1{border-left:2px solid var(--line)}
+.fa-t tr.grp th{font-size:11px;letter-spacing:.8px;border-bottom:1px solid var(--line);padding-bottom:2px;cursor:default}
+.fa-t th u{text-decoration:underline;text-underline-offset:3px}
+.fab{width:36px;height:36px;border-radius:18px;padding:0;font-size:20px;line-height:1;background:#e8a93a;color:#fff;border:none;font-weight:700}
+.fab.pend{width:auto;padding:0 10px;font-size:13px;background:var(--green2,#2e7d32)}
+@media (max-width:700px){.fa-t tr.grp{display:none}.fa-t tr>:nth-child(4),.fa-t tr>:nth-child(9),.fa-t tr>:nth-child(11),.fa-t tr>:nth-child(12){display:none}.fa-t th,.fa-t td{padding:6px 5px}}
 </style>
 </head>
 <body>
@@ -1413,7 +1422,7 @@ function weekEvent(){
   return c.sort((a,b)=>(used(b)-used(a))||(a.date||'').localeCompare(b.date||''))[0]||null;
 }
 function viewFA(){
-  const tid=activeTeam();
+  const tid=activeTeam(),{mvp}=season();
   if(!draftDone()) return `<div class="card empty"><h2>Free agency opens after the draft</h2><p>Once all ${totalPicks()} picks are made, undrafted golfers can be picked up here.</p></div>`;
   const ros=tid?teamRoster(tid):[],full=ros.length>=ROSTER(),editable=canAct(tid);
   const wk=weekEvent(),onlyWk=!!wk&&!UI.faAll;
@@ -1433,24 +1442,54 @@ function viewFA(){
   const byOdds=!!(wkInfo&&Object.keys(wk.odds||{}).length);
   if(byOdds){const pr=o=>{const v=parseInt(String(o||'').replace(/[^0-9+-]/g,''),10);if(isNaN(v))return -1;return v>0?100/(v+100):(-v)/(-v+100);};
     avail=avail.map(x=>({...x,_p:pr(wkInfo.om.get(x.n))})).sort((a,b)=>b._p-a._p||a.i-b.i);}
-  const sortLR=UI.faSort==='lr';
-  if(sortLR){avail=avail.map(x=>({...x,_lr:(lrOf(x.n)||{}).rank||1e6})).sort((a,b)=>a._lr-b._lr||a.i-b.i);}
+  // column sorting (ESPN-style headers). Default = odds (this week) or world rank.
+  const so=UI.faSort&&typeof UI.faSort==='object'?UI.faSort:{k:'def',d:1};
+  const wkSc=wk&&Object.keys(wk.scores||{}).length?scoreLookup(wk):null;
+  const lastOf=n=>{const r=[...playerLog(n)].filter(r=>r.hasScores&&r.fin).pop();return r?(r.mc?{v:999,txt:'MC'}:r.pos?{v:r.pos,txt:(r.tied?'T':'')+r.pos}:null):null;};
+  const oddsP=o=>{const v=parseInt(String(o||'').replace(/[^0-9+-]/g,''),10);if(isNaN(v))return -1;return v>0?100/(v+100):(-v)/(-v+100);};
+  const keyF={owgr:x=>rkOf(x.n)?.rank||1e6,odds:x=>-(wkInfo?oddsP(wkInfo.om.get(x.n)):-1),tee:x=>{const t=wkInfo&&wkInfo.fm.get(x.n);return t?t:'~';},
+    score:x=>{const v=wkSc&&wkSc.get(x.n);return typeof v==='number'?v:v==='MC'?500:1e6;},
+    prk:x=>(lrOf(x.n)||{}).rank||1e6,ev:x=>-((lrOf(x.n)||{}).ev||0),avg:x=>{const L=lrOf(x.n);return L?-L.avg:1e6;},mvp:x=>-((mvp[x.n]||{}).pts||0),last:x=>(lastOf(x.n)||{v:1e6}).v,
+    name:x=>x.n.split(' ').slice(-1)[0].toLowerCase()};
+  if(so.k!=='def'&&keyF[so.k]){const f=keyF[so.k];avail=avail.map((x,i)=>[x,f(x),i]).sort((A,B)=>{const a=A[1],b=B[1];const d=(typeof a==='string'?a.localeCompare(b):a-b)*so.d;return d||A[2]-B[2];}).map(a=>a[0]);}
+  const sortLR=so.k==='prk';
   const faBtn=x=>{const ow=x.own||ownerOf(x.n);if(ow)return `<span class="badge${ow===tid?' me':''}" style="white-space:nowrap">${esc(teamName(ow))}</span>`;if(!editable)return '';if(onWaivers(x.n)){const pend=Object.values(S.claims).find(c=>c.status==='pending'&&c.teamId===tid&&slug(c.add)===slug(x.n));return `<span class="badge bad" title="On waivers until ${esc(fmtRun(waiverClears(x.n)))}">Waivers</span> <button class="sm ${pend?'ghost':''}" data-a="claim" data-n="${esc(x.n)}">${pend?'$'+pend.bid+' claim':'Claim'}</button>`;}return `<button class="sm" data-a="faAdd" data-n="${esc(x.n)}">Add</button>`;};
-  const row=x=>{const tt=wkInfo?wkInfo.fm.get(x.n):null,o=wkInfo?wkInfo.om.get(x.n):null;
-    const L=lrOf(x.n);const meta=[L&&L.rank?`<span title="League rank (avg ${fmtVs(L.avg)} vs field over ${L.ev} events)"><b>LR #${L.rank}</b></span>`:'',RK.list.length?rkTag(x.n):`#${x.i+1}`,tt?`<span class="tee">${esc(tt)}</span>`:'',o?`<span class="odds">${esc(o)}</span>`:''].filter(Boolean).join(' <span class="muted">·</span> ');
-    return `<div class="it"><div class="plc" style="min-width:0">${av(x.n,34)}<div class="gi"><div class="gname">${pn(x.n)}</div> <div class="gmeta small muted">${meta}</div></div></div><span class="row" style="gap:6px;flex-wrap:nowrap;flex:none">${faBtn(x)}</span></div>`;};
-  return `<div class="grid2">
-    <div class="card"><div class="row" style="justify-content:space-between"><h3>Free agents</h3><span class="muted small">${tid?`${esc(teamName(tid))}: ${ros.length}/${ROSTER()}${full?' — adding requires a drop':''}`:''}</span></div>
+  const typeOf=x=>{const ow=x.own||ownerOf(x.n);if(ow)return `<span class="badge${ow===tid?' me':''}" style="white-space:nowrap">${esc(teamName(ow))}</span>`;
+    if(onWaivers(x.n))return `<span title="On waivers until ${esc(fmtRun(waiverClears(x.n)))}">WA (${esc(new Date(waiverClears(x.n)).toLocaleDateString(undefined,{weekday:'short'}))})</span>`;return 'FA';};
+  const actOf=x=>{const ow=x.own||ownerOf(x.n);if(ow||!editable)return '';
+    if(onWaivers(x.n)){const pend=Object.values(S.claims).find(c=>c.status==='pending'&&c.teamId===tid&&slug(c.add)===slug(x.n));return `<button class="fab ${pend?'pend':''}" data-a="claim" data-n="${esc(x.n)}" title="${pend?'Edit your $'+pend.bid+' claim':'Put in a waiver claim'}">${pend?'$'+pend.bid:'+'}</button>`;}
+    return `<button class="fab" data-a="faAdd" data-n="${esc(x.n)}" title="Add ${esc(x.n)}">+</button>`;};
+  const row=x=>{const tt=wkInfo?wkInfo.fm.get(x.n):null,o=wkInfo?wkInfo.om.get(x.n):null,L=lrOf(x.n),m=mvp[x.n],ls=lastOf(x.n),sv=wkSc?wkSc.get(x.n):undefined;
+    const e=rkOf(x.n);const sub=e&&e.ctry?flagOf(e.ctry)+' '+esc(e.ctry):'';
+    return `<tr><td><div class="plc">${av(x.n,34)}<div style="min-width:0"><div class="gname">${pn(x.n)}</div><div class="small muted">${sub}</div></div></div></td>
+      <td class="small" style="white-space:nowrap">${typeOf(x)}</td><td class="fa-act">${actOf(x)}</td>
+      <td class="sea1 small" style="white-space:nowrap">${tt?`<span class="tee">${esc(tt)}</span>`:wkInfo?'<span class="muted">—</span>':''}</td>
+      <td class="num">${o?`<span class="odds">${esc(o)}</span>`:'<span class="muted">—</span>'}</td>
+      <td class="num">${rkTag(x.n)}</td>
+      <td class="num ${typeof sv==='number'?scls(sv):''}">${sv==null?'<span class="muted">—</span>':sv==='MC'?'MC':fmt(sv)}</td>
+      <td class="num sea1">${L&&L.rank?L.rank:'<span class="muted">—</span>'}</td><td class="num">${L?L.ev:0}</td>
+      <td class="num ${L?(L.avg>0?'under':L.avg<0?'over':''):''}">${L?fmtVs(L.avg):'<span class="muted">—</span>'}</td>
+      <td class="num">${m?fp(m.pts):'0'}</td><td class="num">${ls?ls.txt:'<span class="muted">—</span>'}</td></tr>`;};
+  const th=(k,label,cls,tip)=>`<th class="${cls||''}" data-a="faSort" data-id="${k}" style="cursor:pointer;user-select:none;white-space:nowrap" title="${esc(tip||'Sort by '+label)}"><u>${label}</u>${so.k===k?(so.d>0?' ▲':' ▼'):''}</th>`;
+  const yr=String((wk||nextTour()||{}).date||'').slice(0,4)||new Date().getFullYear();
+  const shown=avail.slice(0,UI.faLimit);
+  return `<div class="card"><div class="row" style="justify-content:space-between"><h3>Free agents</h3><span class="muted small">${tid?`${esc(teamName(tid))}: ${ros.length}/${ROSTER()}${full?' — adding requires a drop':''}`:''}</span></div>
       ${wk?`<div class="row" style="margin-bottom:10px;gap:6px"><button class="${onlyWk?'':'ghost'} sm" data-a="faMode" data-id="week">Playing this week: ${esc(wk.name)}</button><button class="${onlyWk?'ghost':''} sm" data-a="faMode" data-id="all">All players</button></div>`:'<div class="muted small" style="margin-bottom:8px">Showing all players. Once this week\'s field is posted, the list switches to golfers who are playing.</div>'}
-      ${WV()?`<div class="small muted fa-note" style="margin-bottom:8px">Waivers run ${esc(fmtRun(nextRunAfter(Date.now())))} ET. Dropped players and golfers who've teed off this week are on waivers until then; everyone else is a free agent you can add instantly. You have <b>$${tid?wvLeft(tid):0}</b> to bid.</div>`:''}
-      <div class="row" style="margin-bottom:10px;gap:6px">${[['fa','Free agents'],['ros','On rosters'],['all','All']].map(([k,l])=>`<button class="${own===k?'':'ghost'} sm" data-a="faOwn" data-id="${k}">${l}</button>`).join('')}</div>
-      <div class="row" style="margin-bottom:10px;gap:6px;align-items:center"><span class="small muted">Sort by</span><button class="${sortLR?'ghost':''} sm" data-a="faSort" data-id="def">${byOdds&&onlyWk?'DK odds':'World rank'}</button><button class="${sortLR?'':'ghost'} sm" data-a="faSort" data-id="lr" title="Average strokes beaten vs the field in league events (min 2 events)">League rank</button></div>
-      <input data-a="faSearch" placeholder="Search golfers…" value="${esc(UI.faSearch)}" style="width:100%;margin-bottom:10px">
-      ${onlyWk?`<div class="muted small" style="margin-bottom:8px">${avail.length} ${own==='fa'?'free agents':own==='ros'?'rostered golfers':'golfers'} in the ${esc(wk.name)} field · sorted by ${sortLR?'league rank (unranked → by world rank)':byOdds?'DraftKings odds (no odds listed → by world rank)':'world rank'}</div>`:rankingsNote()}<div class="list">${avail.slice(0,UI.faLimit).map(row).join('')}${moreBtn('faLimit',Math.min(UI.faLimit,avail.length),avail.length)}${addToPoolBtn(UI.faSearch)}${!avail.length&&!addToPoolBtn(UI.faSearch)?'<div class="it muted">No free agents match.</div>':''}</div>
+      ${WV()?`<div class="small muted fa-note" style="margin-bottom:8px">Waivers run ${esc(fmtRun(nextRunAfter(Date.now())))} ET. Dropped players and golfers who've teed off this week are on waivers (WA) until then; free agents (FA) can be added instantly. You have <b>$${tid?wvLeft(tid):0}</b> to bid.</div>`:''}
+      <div class="row" style="margin-bottom:10px;gap:6px;flex-wrap:wrap">${[['fa','Free agents'],['ros','On rosters'],['all','All']].map(([k,l])=>`<button class="${own===k?'':'ghost'} sm" data-a="faOwn" data-id="${k}">${l}</button>`).join('')}
+        <input data-a="faSearch" placeholder="Search golfers…" value="${esc(UI.faSearch)}" style="flex:1;min-width:180px"></div>
+      <div class="muted small" style="margin-bottom:8px">${avail.length} ${own==='fa'?'free agents':own==='ros'?'rostered golfers':'golfers'}${onlyWk?` in the ${esc(wk.name)} field`:''} · sorted by ${so.k==='def'?(byOdds?'DraftKings odds':'world rank'):{owgr:'world rank',odds:'DraftKings odds',tee:'tee time',score:'score',prk:'league rank',ev:'events played',avg:'avg vs field',mvp:'MVP points',last:'last finish',name:'name'}[so.k]} · click a column to sort</div>
+      <div class="scroll"><table class="fa-t">
+        <tr class="grp"><th>PLAYERS</th><th colspan="2" style="text-align:center">STATUS</th><th colspan="4" class="sea1" style="text-align:center">${wk?esc(short(wk.name)).toUpperCase():'THIS WEEK'}</th><th colspan="5" class="sea1" style="text-align:center">${yr} SEASON</th></tr>
+        <tr>${th('name','Player')}<th>Type</th><th>Action</th>${th('tee','Tee time','sea1')}${th('odds','Odds','num','Sort by DraftKings odds')}${th('owgr','OWGR','num','Sort by world rank')}${th('score','Score','num')}${th('prk','PRK','num sea1','League rank: average strokes beaten vs the field in league events')}${th('ev','EV','num','League events played')}${th('avg','AVG','num','Average strokes beaten vs the field per event')}${th('mvp','MVP','num','MVP points this season')}${th('last','LAST','num','Finish in his last completed league event')}</tr>
+        ${shown.map(row).join('')||'<tr><td colspan="12" class="muted">No golfers match.</td></tr>'}
+      </table></div>
+      <div class="list">${moreBtn('faLimit',shown.length,avail.length)}${addToPoolBtn(UI.faSearch)}</div>
+      ${rankingsNote()}
     </div>
     <div class="card"><h3>Recent transactions</h3>
-      ${S.txns.length?`<table>${S.txns.map(x=>`<tr><td class="small muted" style="white-space:nowrap">${new Date(x.at).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</td><td><b>${esc(teamName(x.teamId))}</b> ${x.add?`added <b>${esc(x.add)}</b>`:''}${x.add&&x.drop?', ':''}${x.drop?`dropped ${esc(x.drop)}`:''}</td></tr>`).join('')}</table>`:'<div class="muted">No moves yet.</div>'}
-    </div></div>`;
+      ${S.txns.length?`<table>${S.txns.slice(0,15).map(x=>`<tr><td class="small muted" style="white-space:nowrap">${new Date(x.at).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</td><td><b>${esc(teamName(x.teamId))}</b> ${x.add?`added <b>${esc(x.add)}</b>`:''}${x.add&&x.drop?', ':''}${x.drop?`dropped ${esc(x.drop)}`:''}</td></tr>`).join('')}</table>`:'<div class="muted">No moves yet.</div>'}
+    </div>`;
 }
 
 function viewTours(){
@@ -1921,7 +1960,7 @@ const ACTIONS={
   },
   player(el,id,n){showPlayer(n);},
   sbTog(el,id,n){const k=id+'|'+n;UI.sbOpen.has(k)?UI.sbOpen.delete(k):UI.sbOpen.add(k);render();},
-  faSort(el,id){UI.faSort=id;UI.faLimit=150;render();},
+  faSort(el,id){const def={name:1,tee:1,owgr:1,odds:1,score:1,prk:1,ev:1,avg:1,mvp:1,last:1};const c=UI.faSort&&typeof UI.faSort==='object'?UI.faSort:{k:'def',d:1};UI.faSort=c.k===id?(c.d>0?{k:id,d:-1}:{k:'def',d:1}):{k:id,d:def[id]||1};UI.faLimit=150;render();},
   sbSort(el,id,n){const def={pos:1,score:1,holes:-1,pts:-1,season:-1};const c=UI.sbSort||{k:'pos',d:1};UI.sbSort=c.k===n?{k:n,d:-c.d}:{k:n,d:def[n]||1};render();},
   sbAll(el,id){const keys=computeTour(S.tours[id]).ranked.map(x=>id+'|'+x.tid);const all=keys.every(k=>UI.sbOpen.has(k));keys.forEach(k=>all?UI.sbOpen.delete(k):UI.sbOpen.add(k));render();},
   openTour(el,id){UI.tour=id;if(tab!=='tournaments'){tab='tournaments';location.hash='tournaments';}render();setTimeout(()=>{const d=document.querySelectorAll('.card')[isComm?2:1];d&&d.scrollIntoView({behavior:'smooth',block:'start'})},30);},
