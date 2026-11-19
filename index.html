@@ -225,11 +225,15 @@ const Scoring = {
       return {tid:t.tid,starters,total,partial:n>0&&n<count,place:null,tied:false,pts:0,mvp:{}};
     });
     if(!hasScores) return {rows,ranked:rows,hasScores:false};
-    const ranked=[...rows].sort((a,b)=>(a.total??1e9)-(b.total??1e9));
+    // Tiebreakers on equal totals: 5th-best golfer, then 6th-best, then best, 2nd, 3rd, 4th (lower score wins)
+    const TB=[4,5,0,1,2,3];
+    rows.forEach(r=>{r.tb=TB.map(k=>{const s=r.starters[k];return s&&s.eff!=null?s.eff:1e9;});});
+    const cmp=(a,b)=>{const d=(a.total??1e9)-(b.total??1e9);if(d)return d;for(let k=0;k<TB.length;k++){const e=a.tb[k]-b.tb[k];if(e)return e;}return 0;};
+    const ranked=[...rows].sort(cmp);
     let i=0;
     while(i<ranked.length){
       if(ranked[i].total==null) break;
-      let j=i; while(j+1<ranked.length&&ranked[j+1].total===ranked[i].total) j++;
+      let j=i; while(j+1<ranked.length&&cmp(ranked[j+1],ranked[i])===0) j++;
       const size=j-i+1;
       const slot=k=>{let s=0;for(let q=i;q<=j;q++) s+=(pts[q+k]||0);return s/size;}; // tied teams share slots
       for(let r=i;r<=j;r++){
@@ -928,7 +932,7 @@ function viewSettings(){
    ${tr('Points by finish',pts(1))}
    ${tr(`Signature events (×${sm})`,pts(sm)+` · ${sig} on the schedule`)}
    ${tr(`Majors (×${mm})`,pts(mm)+` · ${maj} on the schedule`)}
-   ${tr('Ties','Tied teams split the points for the places they cover')}
+   ${tr('Tiebreakers','Same team score: lower 5th-best golfer wins, then 6th-best, then best, 2nd, 3rd and 4th-best. Still tied after all of that: the teams split the points for the places they cover')}
    ${tr('Missed cut / WD','Gets the score of the worst golfer who made the cut that week')}
    ${tr('Empty lineup slot','"No golfer picked" — scored like a missed cut')}
    ${tr('Golfer not in the field','Can\'t be started')}
@@ -1191,8 +1195,12 @@ function liveCard(t){
   const upd=t.scoresUpdated?` · scores updated ${new Date(t.scoresUpdated).toLocaleString(undefined,{weekday:'short',hour:'numeric',minute:'2-digit'})}`:'';
   return `<div class="card"><div class="row" style="justify-content:space-between"><div><h3>${esc(t.name)} ${fin?'<span class="badge final">Final</span>':'<span class="badge live">Live</span>'} ${t.major?'<span class="badge major">Major</span>':''}${pk?' <span class="badge major">Playoffs</span>':''}</h3><div class="small muted">${esc(fmtDates(t))}${upd}</div></div><div class="row" style="gap:6px"><a class="btn ghost sm" href="https://www.espn.com/golf/leaderboard" target="_blank" rel="noopener">ESPN live ↗</a><button class="btn ghost sm" data-a="sbAll" data-id="${t.id}">Expand all</button><a class="btn ghost sm" href="#tournaments" data-a="openTour" data-id="${t.id}">Full leaderboard</a></div></div>
   ${!fin?`<div class="small muted" style="margin:6px 0">Live from ESPN — scores refresh every 30 seconds while this page is open.${LIVE.at?' Last update '+new Date(LIVE.at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit'})+'.':''}</div>`:''}
-  ${r.hasScores?`<table><tr><th>Pos</th><th>Team</th><th class="num">Score</th><th class="num">Holes left</th><th class="num">${fin?'Pts':'Proj. pts'}</th><th class="num">${fin?'Season':'Proj. season'}</th></tr>
-  ${r.ranked.map(x=>{const b=base(x.tid),open=UI.sbOpen.has(t.id+'|'+x.tid);return `<tr class="sbrow" data-a="sbTog" data-id="${t.id}" data-n="${x.tid}" style="cursor:pointer"><td>${x.place?(x.tied?'T':'')+x.place:'–'}</td><td><span class="sbcar">${open?'▾':'▸'}</span> <b>${esc(teamName(x.tid))}</b>${x.tid===myTeam()?' <span class="badge me">you</span>':''}</td><td class="num ${scls(x.total)}">${fmt(x.total)}${x.partial?'*':''}</td><td class="num">${(()=>{const hl=teamHolesLeft(t,x);return hl?hl:'<span class="muted">Done</span>';})()}</td><td class="num">${fp(x.pts)}</td><td class="num"><b>${b==null?'—':fp(b+x.pts)}</b>${b!=null?` <span class="small muted">(${fp(b)} + ${fp(x.pts)})</span>`:''}</td></tr>${open?sbDetail(t,x):''}`;}).join('')}</table>`:'<div class="muted">Waiting for scores.</div>'}</div>`;
+  ${r.hasScores?(()=>{const so=UI.sbSort||{k:'pos',d:1};
+    const val={pos:x=>x.place??1e9,score:x=>x.total??1e9,holes:x=>teamHolesLeft(t,x)||0,pts:x=>x.pts||0,season:x=>{const b=base(x.tid);return b==null?x.pts||0:b+(x.pts||0);}};
+    const list=[...r.ranked].map((x,i)=>[x,i]).sort((A,B)=>{const d=(val[so.k](A[0])-val[so.k](B[0]))*so.d;return d||A[1]-B[1];}).map(a=>a[0]);
+    const th=(k,label,cls)=>`<th class="${cls||''} sortable" data-a="sbSort" data-n="${k}" style="cursor:pointer;user-select:none" title="Sort by ${label.toLowerCase()}">${label}${so.k===k?(so.d>0?' ▲':' ▼'):''}</th>`;
+    return `<table><tr>${th('pos','Pos')}<th>Team</th>${th('score','Score','num')}${th('holes','Holes left','num')}${th('pts',fin?'Pts':'Proj. pts','num')}${th('season',fin?'Season':'Proj. season','num')}</tr>
+  ${list.map(x=>{const b=base(x.tid),open=UI.sbOpen.has(t.id+'|'+x.tid);return `<tr class="sbrow" data-a="sbTog" data-id="${t.id}" data-n="${x.tid}" style="cursor:pointer"><td>${x.place?(x.tied?'T':'')+x.place:'–'}</td><td><span class="sbcar">${open?'▾':'▸'}</span> <b>${esc(teamName(x.tid))}</b>${x.tid===myTeam()?' <span class="badge me">you</span>':''}</td><td class="num ${scls(x.total)}">${fmt(x.total)}${x.partial?'*':''}</td><td class="num">${(()=>{const hl=teamHolesLeft(t,x);return hl?hl:'<span class="muted">Done</span>';})()}</td><td class="num">${fp(x.pts)}</td><td class="num"><b>${b==null?'—':fp(b+x.pts)}</b>${b!=null?` <span class="small muted">(${fp(b)} + ${fp(x.pts)})</span>`:''}</td></tr>${open?sbDetail(t,x):''}`;}).join('')}</table>`;})():'<div class="muted">Waiting for scores.</div>'}</div>`;
 }
 function sbDetail(t,x){
   const mc=cutScore(t),fin=t.status==='final';
@@ -1493,7 +1501,7 @@ function viewSetup(){
   const rules=`<div class="card"><h3>Scoring rules</h3><ul class="small" style="margin:0;padding-left:18px">
     <li>${ROSTER()}-round snake draft; roster of ${ROSTER()} golfers.</li><li>Start ${STARTERS()} each tournament; your best ${COUNT()} scores (to par) are your team score. Lowest wins.</li>
     <li>Default points by finish: <b>${(s.defaultPoints||[]).join(', ')}</b>. Majors double. Each tournament can be customized.</li>
-    <li>Missed cut / WD: gets the score of the worst golfer who made the cut in that tournament (rostered or not).</li><li>MVP: counting golfers earn points down the table from the team's finish; ties split.</li></ul></div>`;
+    <li>Missed cut / WD: gets the score of the worst golfer who made the cut in that tournament (rostered or not).</li><li>Tiebreakers: 5th-best golfer, then 6th-best, then best, 2nd, 3rd, 4th (lower score wins).</li><li>MVP: counting golfers earn points down the table from the team's finish; ties split.</li></ul></div>`;
   if(!isComm) return rules;
   const picks=Object.keys(S.roster).length;
   const dp=s.defaultPoints||Scoring.genPoints(N);
@@ -1859,6 +1867,7 @@ const ACTIONS={
   },
   player(el,id,n){showPlayer(n);},
   sbTog(el,id,n){const k=id+'|'+n;UI.sbOpen.has(k)?UI.sbOpen.delete(k):UI.sbOpen.add(k);render();},
+  sbSort(el,id,n){const def={pos:1,score:1,holes:-1,pts:-1,season:-1};const c=UI.sbSort||{k:'pos',d:1};UI.sbSort=c.k===n?{k:n,d:-c.d}:{k:n,d:def[n]||1};render();},
   sbAll(el,id){const keys=computeTour(S.tours[id]).ranked.map(x=>id+'|'+x.tid);const all=keys.every(k=>UI.sbOpen.has(k));keys.forEach(k=>all?UI.sbOpen.delete(k):UI.sbOpen.add(k));render();},
   openTour(el,id){UI.tour=id;if(tab!=='tournaments'){tab='tournaments';location.hash='tournaments';}render();setTimeout(()=>{const d=document.querySelectorAll('.card')[isComm?2:1];d&&d.scrollIntoView({behavior:'smooth',block:'start'})},30);},
   async createTour(){
