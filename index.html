@@ -187,6 +187,13 @@ pre.msg{white-space:pre-wrap;background:#fff;border:1px solid var(--line);border
 .fab{width:36px;height:36px;border-radius:18px;padding:0;font-size:20px;line-height:1;background:#e8a93a;color:#fff;border:none;font-weight:700}
 .fab.pend{width:auto;padding:0 10px;font-size:13px;background:var(--green2,#2e7d32)}
 @media (max-width:700px){.fa-t tr.grp{display:none}.fa-t tr>:nth-child(4),.fa-t tr>:nth-child(9),.fa-t tr>:nth-child(11),.fa-t tr>:nth-child(12){display:none}.fa-t th,.fa-t td{padding:6px 5px}}
+
+.fa-filters{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin:6px 0 12px}
+.ddl{display:flex;flex-direction:column;gap:6px;font-size:14px}
+.ddl>span{color:var(--ink,#222)}
+.ddl select,.ddl input{border:1.5px solid #c9c9c9;border-radius:999px;padding:10px 40px 10px 18px;font-size:15px;background:#fafafa;min-width:170px;height:46px;box-sizing:border-box}
+.ddl input{padding-right:18px}
+.ddl select{appearance:none;-webkit-appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%231a73e8' stroke-width='1.6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 16px center}
 </style>
 </head>
 <body>
@@ -1426,7 +1433,7 @@ function viewFA(){
   if(!draftDone()) return `<div class="card empty"><h2>Free agency opens after the draft</h2><p>Once all ${totalPicks()} picks are made, undrafted golfers can be picked up here.</p></div>`;
   const ros=tid?teamRoster(tid):[],full=ros.length>=ROSTER(),editable=canAct(tid);
   const wk=weekEvent(),onlyWk=!!wk&&!UI.faAll;
-  const own=UI.faOwn||'fa',qq=(UI.faSearch||'').trim().toLowerCase();
+  const filt=UI.faFilt||'avail',own=filt==='ros'?'ros':filt==='all'?'all':'fa',qq=(UI.faSearch||'').trim().toLowerCase();
   let avail=availableGolfers(UI.faSearch);
   const rosList=()=>Object.values(S.roster).filter(r=>!qq||r.name.toLowerCase().includes(qq)).map(r=>({n:r.name,i:rkOf(r.name)?.rank?rkOf(r.name).rank-1:99998,own:r.teamId})).sort((a,b)=>a.i-b.i);
   let wkInfo=null;
@@ -1442,6 +1449,8 @@ function viewFA(){
   const byOdds=!!(wkInfo&&Object.keys(wk.odds||{}).length);
   if(byOdds){const pr=o=>{const v=parseInt(String(o||'').replace(/[^0-9+-]/g,''),10);if(isNaN(v))return -1;return v>0?100/(v+100):(-v)/(-v+100);};
     avail=avail.map(x=>({...x,_p:pr(wkInfo.om.get(x.n))})).sort((a,b)=>b._p-a._p||a.i-b.i);}
+  if(filt==='wa')avail=avail.filter(x=>!(x.own||ownerOf(x.n))&&onWaivers(x.n));
+  if(filt==='free')avail=avail.filter(x=>!(x.own||ownerOf(x.n))&&!onWaivers(x.n));
   // column sorting (ESPN-style headers). Default = odds (this week) or world rank.
   const so=UI.faSort&&typeof UI.faSort==='object'?UI.faSort:{k:'def',d:1};
   const wkSc=wk&&Object.keys(wk.scores||{}).length?scoreLookup(wk):null;
@@ -1474,11 +1483,14 @@ function viewFA(){
   const yr=String((wk||nextTour()||{}).date||'').slice(0,4)||new Date().getFullYear();
   const shown=avail.slice(0,UI.faLimit);
   return `<div class="card"><div class="row" style="justify-content:space-between"><h3>Free agents</h3><span class="muted small">${tid?`${esc(teamName(tid))}: ${ros.length}/${ROSTER()}${full?' — adding requires a drop':''}`:''}</span></div>
-      ${wk?`<div class="row" style="margin-bottom:10px;gap:6px"><button class="${onlyWk?'':'ghost'} sm" data-a="faMode" data-id="week">Playing this week: ${esc(wk.name)}</button><button class="${onlyWk?'ghost':''} sm" data-a="faMode" data-id="all">All players</button></div>`:'<div class="muted small" style="margin-bottom:8px">Showing all players. Once this week\'s field is posted, the list switches to golfers who are playing.</div>'}
+      <div class="fa-filters">
+        <label class="ddl"><span>Filter</span><select data-a="faFilt">${[['all','All'],['avail','Available'],['wa','On Waivers'],['free','Free Agents'],['ros','On Rosters']].map(([k,l])=>`<option value="${k}"${filt===k?' selected':''}>${l}</option>`).join('')}</select></label>
+        ${wk?`<label class="ddl"><span>Show</span><select data-a="faWeek"><option value="week"${onlyWk?' selected':''}>Playing this week</option><option value="all"${onlyWk?'':' selected'}>All players</option></select></label>`:''}
+        <label class="ddl" style="flex:1;min-width:200px"><span>Search</span><input data-a="faSearch" placeholder="Player name" value="${esc(UI.faSearch)}"></label>
+      </div>
       ${WV()?`<div class="small muted fa-note" style="margin-bottom:8px">Waivers run ${esc(fmtRun(nextRunAfter(Date.now())))} ET. Dropped players and golfers who've teed off this week are on waivers (WA) until then; free agents (FA) can be added instantly. You have <b>$${tid?wvLeft(tid):0}</b> to bid.</div>`:''}
-      <div class="row" style="margin-bottom:10px;gap:6px;flex-wrap:wrap">${[['fa','Free agents'],['ros','On rosters'],['all','All']].map(([k,l])=>`<button class="${own===k?'':'ghost'} sm" data-a="faOwn" data-id="${k}">${l}</button>`).join('')}
-        <input data-a="faSearch" placeholder="Search golfers…" value="${esc(UI.faSearch)}" style="flex:1;min-width:180px"></div>
-      <div class="muted small" style="margin-bottom:8px">${avail.length} ${own==='fa'?'free agents':own==='ros'?'rostered golfers':'golfers'}${onlyWk?` in the ${esc(wk.name)} field`:''} · sorted by ${so.k==='def'?(byOdds?'DraftKings odds':'world rank'):{owgr:'world rank',odds:'DraftKings odds',tee:'tee time',score:'score',prk:'league rank',ev:'events played',avg:'avg vs field',mvp:'MVP points',last:'last finish',name:'name'}[so.k]} · click a column to sort</div>
+      ${wk?'':'<div class="muted small" style="margin-bottom:8px">Showing all players. Once this week\'s field is posted, you can switch to golfers who are playing.</div>'}
+      <div class="muted small" style="margin-bottom:8px">${avail.length} ${({avail:'available golfers',wa:'golfers on waivers',free:'free agents',ros:'rostered golfers',all:'golfers'})[filt]}${onlyWk?` in the ${esc(wk.name)} field`:''} · sorted by ${so.k==='def'?(byOdds?'DraftKings odds':'world rank'):{owgr:'world rank',odds:'DraftKings odds',tee:'tee time',score:'score',prk:'league rank',ev:'events played',avg:'avg vs field',mvp:'MVP points',last:'last finish',name:'name'}[so.k]} · click a column to sort</div>
       <div class="scroll"><table class="fa-t">
         <tr class="grp"><th>PLAYERS</th><th colspan="2" style="text-align:center">STATUS</th><th colspan="4" class="sea1" style="text-align:center">${wk?esc(short(wk.name)).toUpperCase():'THIS WEEK'}</th><th colspan="5" class="sea1" style="text-align:center">${yr} SEASON</th></tr>
         <tr>${th('name','Player')}<th>Type</th><th>Action</th>${th('tee','Tee time','sea1')}${th('odds','Odds','num','Sort by DraftKings odds')}${th('owgr','OWGR','num','Sort by world rank')}${th('score','Score','num')}${th('prk','PRK','num sea1','League rank: average strokes beaten vs the field in league events')}${th('ev','EV','num','League events played')}${th('avg','AVG','num','Average strokes beaten vs the field per event')}${th('mvp','MVP','num','MVP points this season')}${th('last','LAST','num','Finish in his last completed league event')}</tr>
@@ -1674,6 +1686,8 @@ document.addEventListener('change',e=>{
   if(a==='tradeWith'){UI.tradeWith=el.value;UI.tGet=new Set();render();}
   if(a==='oppSel'){UI.oppTid=el.value;UI.lineTour=null;UI.lineSel=null;UI.moveFrom=null;render();}
   if(a==='histEv'){UI.histEv=el.value;render();}
+  if(a==='faFilt'){UI.faFilt=el.value;UI.faLimit=150;render();}
+  if(a==='faWeek'){UI.faAll=el.value==='all';UI.faLimit=150;render();}
   if(a==='histSeason'){UI.histSeason=+el.value;render();}
   if(a==='teSig'){const t=S.tours[el.dataset.id];if(t)w(()=>db.doc('tournaments/'+t.id).update({signature:el.checked,note:el.checked?'Signature':(t.note==='Signature'?'':t.note||''),points:null}),el.checked?t.name+' is a signature event':t.name+' is a regular event');}
   if(a==='lockOff'){const t=S.tours[el.dataset.id];if(t)w(()=>db.doc('tournaments/'+t.id).update({lockOff:el.checked}),el.checked?'Lineups stay open for '+t.name:'Tee-time locks on for '+t.name);}
