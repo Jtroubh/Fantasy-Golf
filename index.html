@@ -214,6 +214,7 @@ pre.msg{white-space:pre-wrap;background:#fff;border:1px solid var(--line);border
 .tc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:nowrap}
 .tc-top b{min-width:0}
 .tc-badge{flex:none}
+.badge.po{background:#f3e3f3;color:#7a2a7a}
 .badge.sig{background:#e6eefb;color:#1f4f9a}
 </style>
 </head>
@@ -967,15 +968,20 @@ function tradesFor(kind,tid){const all=Object.values(S.trades).sort((a,b)=>(b.cr
   if(kind==='waiting')return all.filter(x=>x.status==='accepted'&&(x.from===tid||x.to===tid));
   return all;}
 const tradeLocked=n=>teedOff(n);
-function tradeProblems(x){const out=[];const R=ROSTER();
+function isPlayoffEv(t){try{if(poStageKey(t.id))return true;}catch(e){}return /fedex st\.? jude|bmw championship|tour championship/i.test(t.name||'');}
+function tradeOver(x,side){const R=ROSTER();if(side==='from')return teamRoster(x.from).length-(x.give||[]).length+(x.get||[]).length-R;return teamRoster(x.to).length-(x.get||[]).length+(x.give||[]).length-R;}
+function tradeProblems(x,stage){const out=[];
   const onT=(n,tid)=>{const r=S.roster[slug(n)];return r&&r.teamId===tid;};
   (x.give||[]).forEach(n=>{if(!onT(n,x.from))out.push(`${n} is no longer on ${teamName(x.from)}`);else if(tradeLocked(n))out.push(`${n} has already teed off this week`);});
   (x.get||[]).forEach(n=>{if(!onT(n,x.to))out.push(`${n} is no longer on ${teamName(x.to)}`);else if(tradeLocked(n))out.push(`${n} has already teed off this week`);});
-  const a=teamRoster(x.from).length-(x.give||[]).length+(x.get||[]).length,b=teamRoster(x.to).length-(x.get||[]).length+(x.give||[]).length;
-  if(a>R)out.push(`${teamName(x.from)} would have ${a} golfers (max ${R})`);if(b>R)out.push(`${teamName(x.to)} would have ${b} golfers (max ${R})`);
+  const chk=(list,tid,keep)=>(list||[]).forEach(n=>{if(!onT(n,tid))out.push(`${n} (drop) is no longer on ${teamName(tid)}`);else if(keep.includes(n))out.push(`${n} can't be both traded and dropped`);else if(teedOff(n))out.push(`${n} has teed off this week and can't be dropped`);});
+  chk(x.dropFrom,x.from,x.give||[]);chk(x.dropTo,x.to,x.get||[]);
+  const oa=tradeOver(x,'from')-(x.dropFrom||[]).length;if(oa>0)out.push(`${teamName(x.from)} needs to drop ${oa} more golfer${oa>1?'s':''} to make room`);
+  if(stage!=='propose'){const ob=tradeOver(x,'to')-(x.dropTo||[]).length;if(ob>0)out.push(`${teamName(x.to)} needs to drop ${ob} golfer${ob>1?'s':''} to make room`);}
   return out;}
 function tradeLine(x){const L=a=>(a||[]).map(n=>`<b>${esc(n)}</b>`).join(', ')||'<span class="muted">nothing</span>';
-  return `<div><b>${esc(teamName(x.from))}</b> sends ${L(x.give)}</div><div style="margin-top:4px"><b>${esc(teamName(x.to))}</b> sends ${L(x.get)}</div>${x.note?`<div class="small muted" style="margin-top:4px">“${esc(x.note)}”</div>`:''}`;}
+  const D_=(a,t)=>(a&&a.length)?`<div class="small" style="margin-top:4px"><b>${esc(teamName(t))}</b> drops ${a.map(n=>`<b>${esc(n)}</b>`).join(', ')}</div>`:'';
+  return `<div><b>${esc(teamName(x.from))}</b> sends ${L(x.give)}</div><div style="margin-top:4px"><b>${esc(teamName(x.to))}</b> sends ${L(x.get)}</div>${D_(x.dropFrom,x.from)}${D_(x.dropTo,x.to)}${x.note?`<div class="small muted" style="margin-top:4px">“${esc(x.note)}”</div>`:''}`;}
 function viewTrade(){
   const me_=activeTeam(),them=UI.tradeWith&&S.teams[UI.tradeWith]?UI.tradeWith:null;
   if(!me_||!them||them===me_)return `<div class="card empty"><h2>Propose a trade</h2><p class="muted">Open a team from Opposing Teams and press “Propose trade”.</p></div>`;
@@ -984,14 +990,21 @@ function viewTrade(){
   const tbl=(tid,set,key)=>`<div class="card"><div class="plc" style="margin-bottom:10px">${S.teams[tid]?.logo?`<span class="av" style="width:36px;height:36px"><img src="${esc(S.teams[tid].logo)}" alt=""></span>`:''}<h3 style="margin:0">${esc(teamName(tid))}</h3></div>
     <div class="scroll"><table><tr><th></th><th>Golfer</th><th class="num">OWGR</th><th class="num">MVP pts</th></tr>
     ${teamRoster(tid).map(r=>{const lk=tradeLocked(r.name),on=set.has(r.name);return `<tr class="${lk?'dim':''}"><td><input type="checkbox" data-a="${key}" value="${esc(r.name)}" ${on?'checked':''} ${lk?'disabled title="Teed off this week — can be traded after the next waiver run"':''}></td><td><div class="plc">${av(r.name,28)}<b>${pn(r.name)}</b></div></td><td class="num">${rkOf(r.name)?'#'+rkOf(r.name).rank:'NR'}</td><td class="num">${mvp[r.name]?fp(mvp[r.name].pts):'0'}</td></tr>`;}).join('')}</table></div></div>`;
-  const x={from:me_,to:them,give:[...UI.tGive],get:[...UI.tGet]},probs=(x.give.length||x.get.length)?tradeProblems(x):[];
+  UI.tDrop=UI.tDrop||new Set();[...UI.tDrop].forEach(n=>{if(UI.tGive.has(n))UI.tDrop.delete(n);});
+  const x0={from:me_,to:them,give:[...UI.tGive],get:[...UI.tGet]},needA=Math.max(0,tradeOver(x0,'from')),needB=Math.max(0,tradeOver(x0,'to'));
+  if(!needA)UI.tDrop.clear();
+  const x={...x0,dropFrom:[...UI.tDrop]},probs=(x.give.length||x.get.length)?tradeProblems(x,'propose'):[];
+  const dropPick=needA?`<div class="notice small" style="margin-top:10px"><b>You'd have ${ROSTER()+needA} golfers (max ${ROSTER()}).</b> Pick ${needA} to drop when the trade goes through:</div>
+    <div class="list" style="margin-top:6px">${teamRoster(me_).filter(r=>!UI.tGive.has(r.name)).map(r=>{const lk=teedOff(r.name),on=UI.tDrop.has(r.name);return `<label class="it" style="cursor:pointer;${lk?'opacity:.5':''}"><span class="plc"><input type="checkbox" data-a="tDrop" value="${esc(r.name)}" ${on?'checked':''} ${lk?'disabled':''}> ${av(r.name,24)}${esc(r.name)}</span><span class="small muted">${lk?'teed off':rkOf(r.name)?'#'+rkOf(r.name).rank:'NR'}</span></label>`;}).join('')}</div>`:'';
+  const recvNote=needB?`<div class="small muted" style="margin-top:8px">${esc(teamName(them))} would go over ${ROSTER()} golfers, so they'll pick ${needB} to drop if they accept.</div>`:'';
   return `<div class="card" style="border-top:4px solid var(--green2)"><div class="row" style="align-items:baseline;gap:12px"><h2 style="margin:0">Propose Trade</h2><span class="muted">${esc(ST().name||'')}</span></div>
     <div style="margin-top:6px">Trade with <b>${esc(teamName(them))}</b> <select data-a="tradeWith" style="margin-left:8px">${order().filter(t=>t!==me_).map(t=>`<option value="${t}" ${t===them?'selected':''}>${esc(teamName(t))}</option>`).join('')}</select></div></div>
   <div class="grid2">${tbl(them,UI.tGet,'tGet')}${tbl(me_,UI.tGive,'tGive')}</div>
   <div class="card"><h3>Summary</h3>
     <div>You get: ${x.get.length?x.get.map(n=>`<b>${esc(n)}</b>`).join(', '):'<span class="muted">pick golfers from their team</span>'}</div>
     <div style="margin-top:4px">You give: ${x.give.length?x.give.map(n=>`<b>${esc(n)}</b>`).join(', '):'<span class="muted">pick golfers from your team</span>'}</div>
-    ${probs.length?`<div class="notice small" style="margin-top:10px">${probs.map(esc).join('<br>')}</div>`:''}
+    ${dropPick}${recvNote}
+    ${probs.filter(p=>!/needs to drop/.test(p)).length?`<div class="notice small" style="margin-top:10px">${probs.filter(p=>!/needs to drop/.test(p)).map(esc).join('<br>')}</div>`:''}
     <input id="tNote" placeholder="Add a note (optional)" style="width:100%;margin:12px 0">
     <div class="row" style="gap:8px"><button data-a="tradeSend" ${(!x.give.length&&!x.get.length)||probs.length?'disabled':''}>Send trade offer</button><button class="ghost" data-a="tradeClear">Clear</button></div>
     <p class="small muted" style="margin-top:8px">${esc(teamName(them))} can accept or reject. Accepted trades go to the commissioner to approve before players move.</p></div>`;
@@ -1539,7 +1552,7 @@ function viewTours(){
   <div class="card"><h2 style="margin-bottom:12px">League schedule <span class="muted small">${all.length} event${all.length===1?'':'s'}</span></h2>
   ${all.length?`<div class="tcards">${all.map(t=>{const r=t.status==='final'?computeTour(t):null;const w=r?.ranked.find(x=>x.place===1);return `<div class="tcard ${t.id===UI.tour?'sel':''}" data-a="openTour" data-id="${t.id}">
      <div class="tc-top"><b>${esc(t.name)}</b><span class="tc-badge">${statusBadge(t)}</span></div>
-     <div class="muted small">${esc(fmtDates(t))}${t.major?' · <span class="badge major">Major</span>':isSig(t)?' · <span class="badge sig">Signature</span>':''}</div>
+     <div class="muted small">${esc(fmtDates(t))}${t.major?' · <span class="badge major">Major</span>':isSig(t)?' · <span class="badge sig">Signature</span>':''}${isPlayoffEv(t)?' · <span class="badge po">Playoffs</span>':''}</div>
      <div class="small" style="margin-top:6px">${w?`Winner: <b>${esc(teamName(w.tid))}</b> (${fmt(w.total)})`:`1st: ${tourPts(t)[0]} pts`}</div></div>`}).join('')}</div>`:'<div class="muted">No events picked yet.'+(isComm?' Choose events from the PGA Tour schedule below.':' The commissioner picks them from the PGA Tour schedule.')+'</div>'}
   </div>
   ${sel?tourDetail(sel):''}
@@ -1709,6 +1722,7 @@ document.addEventListener('change',e=>{
   if(a==='offRun'){UI.offRun=+el.value;render();}
   if(a==='lmTour'){UI.lmTour=el.value;render();}
   if(a==='tGive'||a==='tGet'){const S2=a==='tGive'?UI.tGive:UI.tGet;el.checked?S2.add(el.value):S2.delete(el.value);render();}
+  if(a==='tDrop'){UI.tDrop=UI.tDrop||new Set();el.checked?UI.tDrop.add(el.value):UI.tDrop.delete(el.value);render();}
   if(a==='tradeWith'){UI.tradeWith=el.value;UI.tGet=new Set();render();}
   if(a==='oppSel'){UI.oppTid=el.value;UI.lineTour=null;UI.lineSel=null;UI.moveFrom=null;render();}
   if(a==='histEv'){UI.histEv=el.value;render();}
@@ -1955,11 +1969,11 @@ const ACTIONS={
     Object.keys(D).filter(k=>k.startsWith('po_')).forEach(k=>delete D[k]);
   },
   dFilter(el,id){UI.dAll=id==='all';UI.dLimit=150;render();},
-  tradeOpen(el,id){UI.tradeWith=id;UI.tGive=new Set();UI.tGet=new Set();tab='trade';if(location.hash!=='#trade')location.hash='trade';render();window.scrollTo&&window.scrollTo(0,0);},
-  tradeClear(){UI.tGive=new Set();UI.tGet=new Set();render();},
-  async tradeSend(){const me_=activeTeam(),x={from:me_,to:UI.tradeWith,give:[...UI.tGive],get:[...UI.tGet],note:($('#tNote')?.value||'').trim().slice(0,200),status:'proposed',createdAt:Date.now(),by:me.id||null};
-    if(!canAct(me_))return;const pr=tradeProblems(x);if(pr.length){toast(pr[0]);return;}
-    await w(()=>db.collection('trades').add(x),'Trade offer sent to '+teamName(x.to));UI.tGive=new Set();UI.tGet=new Set();tab='my-team';location.hash='my-team';render();},
+  tradeOpen(el,id){UI.tradeWith=id;UI.tGive=new Set();UI.tGet=new Set();UI.tDrop=new Set();tab='trade';if(location.hash!=='#trade')location.hash='trade';render();window.scrollTo&&window.scrollTo(0,0);},
+  tradeClear(){UI.tGive=new Set();UI.tGet=new Set();UI.tDrop=new Set();render();},
+  async tradeSend(){const me_=activeTeam(),x={from:me_,to:UI.tradeWith,give:[...UI.tGive],get:[...UI.tGet],dropFrom:[...(UI.tDrop||[])],note:($('#tNote')?.value||'').trim().slice(0,200),status:'proposed',createdAt:Date.now(),by:me.id||null};
+    if(!canAct(me_))return;const pr=tradeProblems(x,'propose');if(pr.length){toast(pr[0]);return;}
+    await w(()=>db.collection('trades').add(x),'Trade offer sent to '+teamName(x.to));UI.tGive=new Set();UI.tGet=new Set();UI.tDrop=new Set();tab='my-team';location.hash='my-team';render();},
   tradesBox(el,tid){ACTIONS.pendMoves(el,tid);},
   _tradesHtml(tid){const inc=tradesFor('in',tid),out=tradesFor('out',tid),mine=canAct(tid);
     const row=(x,btns)=>`<div style="padding:12px 0;border-top:1px solid var(--line)">${tradeLine(x)}<div class="small muted" style="margin-top:4px">${x.status==='accepted'?'Accepted — waiting for the commissioner to approve':'Sent '+new Date(x.createdAt).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</div>${mine?`<div class="row" style="gap:6px;margin-top:8px">${btns}</div>`:''}</div>`;
@@ -1968,7 +1982,19 @@ const ACTIONS={
       <div class="small muted" style="font-weight:600">Offers to you</div>${inc.map(x=>row(x,`<button class="sm" data-a="tradeAccept" data-id="${x.id}">Accept</button><button class="ghost sm danger" data-a="tradeReject" data-id="${x.id}">Reject</button>`)).join('')||'<div class="muted small" style="padding:8px 0">None right now.</div>'}
       <div class="small muted" style="font-weight:600;margin-top:10px">Your offers</div>${out.map(x=>row(x,x.status==='proposed'?`<button class="ghost sm" data-a="tradeCancel" data-id="${x.id}">Cancel offer</button>`:'')).join('')||'<div class="muted small" style="padding:8px 0">None.</div>'}
       ${hist.length?`<div class="small muted" style="font-weight:600;margin-top:10px">Recent trades</div>${hist.map(x=>`<div class="small" style="padding:8px 0;border-top:1px solid var(--line)">${tradeLine(x)}<div class="muted">${{approved:'✓ Approved',vetoed:'Vetoed by commissioner',rejected:'Rejected',void:'Cancelled (players moved)'}[x.status]}</div></div>`).join('')}`:''}`;},
-  async tradeAccept(el,id){const x=S.trades[id];if(!x||!canAct(x.to))return;const pr=tradeProblems(x);if(pr.length){toast(pr[0]);return;}closeModal();await w(()=>db.doc('trades/'+id).update({status:'accepted',respondedAt:Date.now()}),'Trade accepted — sent to the commissioner for approval');},
+  async tradeAccept(el,id){const x=S.trades[id];if(!x||!canAct(x.to))return;
+    const need=Math.max(0,tradeOver(x,'to'));
+    const pre=tradeProblems(x,'propose');if(pre.length){toast(pre[0]);return;}
+    let drops=[];
+    if(need){drops=await new Promise(res=>{const sel=new Set();
+      const draw=()=>{modal(`<h3>Make room on ${esc(teamName(x.to))}</h3><p class="small muted">This trade gives you ${need} more golfer${need>1?'s':''} than you send, which puts you over ${ROSTER()}. Pick ${need} to drop when the trade goes through (dropped golfers go on waivers).</p>${tradeLine(x)}
+        <div class="list" style="margin:10px 0">${teamRoster(x.to).filter(r=>!(x.get||[]).includes(r.name)).map(r=>{const lk=teedOff(r.name),on=sel.has(r.name);return `<label class="it" style="cursor:pointer;${lk?'opacity:.5':''}"><span class="plc"><input type="checkbox" class="accDrop" value="${esc(r.name)}" ${on?'checked':''} ${lk?'disabled':''}> ${av(r.name,24)}${esc(r.name)}</span><span class="small muted">${lk?'teed off':rkOf(r.name)?'#'+rkOf(r.name).rank:'NR'}</span></label>`;}).join('')}</div>
+        <div class="row" style="justify-content:flex-end;gap:6px"><button class="ghost" id="adNo">Cancel</button><button id="adYes" ${sel.size===need?'':'disabled'}>Accept &amp; drop ${sel.size}/${need}</button></div>`);
+        document.querySelectorAll('.accDrop').forEach(cb=>cb.onchange=()=>{cb.checked?sel.add(cb.value):sel.delete(cb.value);if(sel.size>need){sel.delete(cb.value);}draw();});
+        $('#adNo').onclick=()=>{closeModal();res(null);};$('#adYes').onclick=()=>{closeModal();res([...sel]);};};draw();});
+      if(!drops)return;}
+    const pr=tradeProblems({...x,dropTo:drops});if(pr.length){toast(pr[0]);return;}
+    closeModal();await w(()=>db.doc('trades/'+id).update({status:'accepted',respondedAt:Date.now(),dropTo:drops}),'Trade accepted — sent to the commissioner for approval');},
   async tradeReject(el,id){const x=S.trades[id];if(!x||!canAct(x.to))return;closeModal();await w(()=>db.doc('trades/'+id).update({status:'rejected',respondedAt:Date.now()}),'Trade rejected');},
   async tradeCancel(el,id){const x=S.trades[id];if(!x||!canAct(x.from))return;closeModal();await w(()=>db.doc('trades/'+id).delete(),'Offer cancelled');},
   async tradeVeto(el,id){if(!isComm)return;if(!await confirmBox('Veto this trade? No players will move.','Veto'))return;await w(()=>db.doc('trades/'+id).update({status:'vetoed',decidedAt:Date.now()}),'Trade vetoed');},
@@ -1976,10 +2002,11 @@ const ACTIONS={
     if(!await confirmBox(`Approve and process this trade?<br><br>${tradeLine(x)}`,'Approve'))return;
     await w(async()=>{for(const n of x.give||[])await db.doc('roster/'+slug(n)).update({teamId:x.to,via:'trade',at:Date.now()});
       for(const n of x.get||[])await db.doc('roster/'+slug(n)).update({teamId:x.from,via:'trade',at:Date.now()});
+      for(const [list,tid] of [[x.dropFrom,x.from],[x.dropTo,x.to]])for(const n of list||[]){await db.doc('roster/'+slug(n)).delete();if(WV())await db.doc('waivers/'+slug(n)).set({name:n,droppedAt:Date.now(),by:tid});await logTxn({teamId:tid,drop:n,type:'trade-drop'});}
       await db.doc('trades/'+id).update({status:'approved',decidedAt:Date.now()});
       await logTxn({teamId:x.from,add:(x.get||[]).join(', ')||null,drop:(x.give||[]).join(', ')||null,type:'trade',with:x.to});
       await logTxn({teamId:x.to,add:(x.give||[]).join(', ')||null,drop:(x.get||[]).join(', ')||null,type:'trade',with:x.from});
-      const moved=new Set([...(x.give||[]),...(x.get||[])].map(slug));
+      const moved=new Set([...(x.give||[]),...(x.get||[]),...(x.dropFrom||[]),...(x.dropTo||[])].map(slug));
       for(const o of Object.values(S.trades))if(o.id!==id&&['proposed','accepted'].includes(o.status)&&[...(o.give||[]),...(o.get||[])].some(n=>moved.has(slug(n))))await db.doc('trades/'+o.id).update({status:'void'});
       setTimeout(sweepClaims,800);
     },'Trade processed — players have moved');},
