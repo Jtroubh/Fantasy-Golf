@@ -828,7 +828,8 @@ async function init(){
   db.doc('league/news').onSnapshot(s=>{SIDE.apply('news',s.exists?s.data():null,'db');mark('news')},onErr);
   db.doc('league/odds').onSnapshot(s=>{SIDE.apply('odds',s.exists?s.data():null,'db');mark('odds')},onErr);
   SIDE.poll();setInterval(SIDE.poll,20*60*1000);
-  db.collection('teams').onSnapshot(q=>{S.teams={};q.docs.forEach(d=>S.teams[d.id]={...d.data(),id:d.id});mark('teams')},onErr);
+  db.collection('teams').onSnapshot(q=>{S.teams={};q.docs.forEach(d=>S.teams[d.id]={...d.data(),id:d.id});mark('teams');
+    try{const em=(me.email||'').toLowerCase(),nm=(me.name||'').trim();const t=Object.values(S.teams).find(t=>t.email&&t.email.toLowerCase()===em);if(t&&!t.owner&&nm&&!/@/.test(nm))db.doc('teams/'+t.id).update({owner:nm}).catch(()=>{});}catch(e){}},onErr);
   db.collection('trades').onSnapshot(q=>{S.trades={};q.docs.forEach(d=>S.trades[d.id]={...d.data(),id:d.id});mark('trades');},onErr);
   db.collection('photos').onSnapshot(q=>{S.photos={};q.docs.forEach(d=>{const x=d.data();if(x&&x.img)S.photos[d.id]=x.img;});mark('photos');},onErr);
   db.collection('draftlog').onSnapshot(q=>{S.dlog={};q.docs.forEach(d=>S.dlog[d.id]={...d.data(),id:d.id});mark('dlog');setTimeout(syncDraftLog,800);},onErr);
@@ -1343,7 +1344,7 @@ function viewMyTeam(forTid){
     UI.lineTour=cur?cur.id:null;UI.lineSel=null;UI.moveFrom=null;}
   const lt=UI.lineTour&&S.tours[UI.lineTour];
   const initials=(t.name||'?').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
-  const owner=t.email?esc(t.email.split('@')[0]):'No owner set';
+  const owner=t.owner?esc(t.owner):t.email?'<span class="muted">Owner name not set</span>':'No owner set';
   // header cards
   const R=allResults(),lastRes=[...R].reverse().find(r=>r.teams.some(x=>x.tid===tid));
   const lastMine=lastRes&&lastRes.teams.find(x=>x.tid===tid),lastWin=lastRes&&lastRes.teams.find(x=>x.place===1);
@@ -1685,9 +1686,10 @@ function viewSetup(){
   </div>
   ${playoffSetup()}
   ${waiverSetup()}
-  <div class="card"><h3>Teams & owners</h3><div class="scroll"><table><tr><th>Draft order</th><th>Team name</th><th>Owner email</th><th></th></tr>
+  <div class="card"><h3>Teams & owners</h3><div class="scroll"><table><tr><th>Draft order</th><th>Team name</th><th>Owner name</th><th>Owner email</th><th></th></tr>
     ${o.map((id,i)=>{const t=S.teams[id];return `<tr><td><div class="row" style="gap:4px"><b style="width:20px">${i+1}</b><button class="ghost sm" data-a="mvUp" data-i="${i}" ${i===0||picks?'disabled':''}>↑</button><button class="ghost sm" data-a="mvDn" data-i="${i}" ${i===N-1||picks?'disabled':''}>↓</button></div></td>
       <td><input data-d="tm_${id}_name" value="${esc(dv('tm_'+id+'_name',t.name||''))}"></td>
+      <td><input data-d="tm_${id}_owner" value="${esc(dv('tm_'+id+'_owner',t.owner||''))}" placeholder="e.g. Alex Martin" style="width:170px"></td>
       <td><input type="email" data-d="tm_${id}_email" value="${esc(dv('tm_'+id+'_email',t.email||''))}" placeholder="owner@email.com" style="width:230px"> ${t.email&&t.email.toLowerCase()===me.email?'<span class="badge me">you</span>':''}</td>
       <td><button class="ghost sm" data-a="invite" data-id="${id}" ${t.email?'':'disabled'}>Invite</button></td></tr>`}).join('')}
   </table></div>
@@ -2122,7 +2124,8 @@ const ACTIONS={
     const bad=[];
     await w(async()=>{for(const id of order()){const t=S.teams[id];const name=(dv('tm_'+id+'_name',t.name)||'').trim()||t.name;const email=(dv('tm_'+id+'_email',t.email||'')||'').trim().toLowerCase();
       if(email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){bad.push(email);continue;}
-      if(name!==t.name||email!==(t.email||'')) await db.doc('teams/'+id).update({name,email});}},bad.length?null:'Teams saved');
+      const owner=(dv('tm_'+id+'_owner',t.owner||'')||'').trim().slice(0,40);
+      if(name!==t.name||email!==(t.email||'')||owner!==(t.owner||'')) await db.doc('teams/'+id).update({name,email,owner});}},bad.length?null:'Teams saved');
     if(bad.length) toast('Check email: '+bad[0]);
     clearD('tm_');
   },
