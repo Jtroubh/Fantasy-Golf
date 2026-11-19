@@ -216,6 +216,13 @@ pre.msg{white-space:pre-wrap;background:#fff;border:1px solid var(--line);border
 .tc-badge{flex:none}
 .badge.po{background:#f3e3f3;color:#7a2a7a}
 .badge.sig{background:#e6eefb;color:#1f4f9a}
+
+.offr td{vertical-align:middle;padding:12px 10px}
+.offr td.pos{border-right:1px solid var(--line);color:var(--muted)}
+.offr tr.lost td:not(.pos){color:var(--muted)}
+.offr tr.gstart td{border-top:1px solid var(--line)}
+.offr tr:nth-child(even) td{background:rgba(0,0,0,.015)}
+.offr td.res{min-width:260px}
 </style>
 </head>
 <body>
@@ -609,7 +616,7 @@ async function processDue(force){
           await db.doc('waivers/'+slug(c.add)).delete();
           await db.collection('txns').add({teamId:c.teamId,add:c.add,drop:c.drop||null,bid:+c.bid,type:'waiver',at:R,by:me.id||null});
         }
-        await db.doc('claims/'+c.id).update({status:st,reason:why,processedAt:R,run:R});
+        await db.doc('claims/'+c.id).update({status:st,reason:why,processedAt:R,run:R,seq:out.findIndex(o=>o.c===c)});
       }
       await db.doc('waivers/run-'+R).set({run:true,at:R,claims:out.length,won:out.filter(x=>x.st==='won').length});
     }
@@ -940,16 +947,20 @@ function viewWaivers(){
   if(UI.offRun==null||!runs[UI.offRun])UI.offRun=keys[0]??null;
   const dlab=R=>new Date(R).toLocaleDateString(undefined,{weekday:'long',month:'short',day:'2-digit',year:'numeric'});
   const sel=UI.offRun!=null?runs[UI.offRun]:[];
-  const byTeam={};sel.forEach(c=>{(byTeam[c.teamId]=byTeam[c.teamId]||[]).push(c);});
-  const res=c=>c.status==='won'?`<b>Added.</b>${c.drop?` ${esc(teamName(c.teamId))} dropped <b>${esc(c.drop)}</b> to Waivers.`:''}`:`<span class="muted">Unsuccessful. Reason: ${esc(c.reason||(c.status==='lost'?'Player has already been added to another team.':'Claim was not valid.'))}</span>`;
-  const teamsOrd=order().filter(id=>byTeam[id]);
+  const res=c=>c.status==='won'?`<b>Added.</b>${c.drop?` ${esc(teamName(c.teamId))} dropped <b>${esc(c.drop)}</b> to Waivers.`:''}`:`Unsuccessful. Reason: ${esc(c.reason||(c.status==='lost'?'Player has already been added to another team.':'Claim was not valid.'))}`;
+  // group by golfer claimed, in processing order (winning claim first)
+  const grp={};sel.forEach(c=>{(grp[slug(c.add)]=grp[slug(c.add)]||[]).push(c);});
+  const sq=c=>c.seq!=null?c.seq:1e6-(+c.bid||0);
+  const groups=Object.values(grp).map(L=>L.sort((a,b)=>(a.status==='won'?0:1)-(b.status==='won'?0:1)||(b.bid-a.bid)||sq(a)-sq(b))).sort((A,B)=>Math.min(...A.map(sq))-Math.min(...B.map(sq)));
+  const tlogo=id=>{const t=S.teams[id];return t&&t.logo?`<span class="av" style="width:30px;height:30px;flex:none"><img src="${esc(t.logo)}" alt=""></span>`:`<span class="av" style="width:30px;height:30px;flex:none;font-size:11px">${esc((teamName(id)||'?').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase())}</span>`;};
+  const sub=n=>{const e=rkOf(n);return [e?'#'+e.rank:'NR',e&&e.ctry?esc(e.ctry):''].filter(Boolean).join(', ');};
+  const rows=groups.map((L,gi)=>L.map((c,j)=>`<tr class="${c.status==='won'?'won':'lost'}${j===0?' gstart':''}"><td class="num pos">${j===0?gi+1:''}</td><td><div class="plc">${tlogo(c.teamId)}<span>${esc(teamName(c.teamId))}</span></div></td><td>${pn(c.add)} <span class="small muted">${sub(c.add)}</span></td><td class="num">$${c.bid}</td><td class="res">${res(c)}</td></tr>`).join('')).join('');
   return `<div class="card" style="border-top:4px solid var(--green2)">
     <div class="row" style="align-items:baseline;gap:12px"><h2 style="margin:0">Free Agent Offers Report</h2><span class="muted">${esc(ST().name||'')}</span></div>
     <div class="small muted" style="margin:6px 0 14px">Next waiver run: <b>${esc(fmtRun(nr))} ET</b> · ${pend.length} claim${pend.length===1?'':'s'} pending across the league${isComm?` · <a href="#" data-a="processNow">Process pending claims now</a>`:''}</div>
-    <label class="f" style="max-width:340px">View Date<select data-a="offRun">${keys.length?keys.map(R=>`<option value="${R}" ${R===UI.offRun?'selected':''}>${esc(dlab(R))} (${runs[R].length})</option>`).join(''):'<option>No waiver runs yet</option>'}</select></label>
-    ${keys.length?teamsOrd.map(id=>`<h3 style="margin:22px 0 6px">${esc(teamName(id))}</h3>
-      <table><tr><th>Claim</th><th class="num" style="width:80px">Offer</th><th>Results</th></tr>
-      ${byTeam[id].sort((a,b)=>(a.status==='won'?0:1)-(b.status==='won'?0:1)||b.bid-a.bid).map(c=>`<tr class="${c.status==='won'?'':'dim'}"><td>${pn(c.add)} ${rkTag(c.add)}</td><td class="num">$${c.bid}</td><td>${res(c)}</td></tr>`).join('')}</table>`).join(''):'<div class="muted" style="margin-top:14px">No waiver runs yet. Results show here after the first run.</div>'}
+    <label class="ddl" style="max-width:380px"><span>View Date</span><select data-a="offRun">${keys.length?keys.map(R=>`<option value="${R}" ${R===UI.offRun?'selected':''}>${esc(dlab(R))} (${runs[R].length})</option>`).join(''):'<option>No waiver runs yet</option>'}</select></label>
+    ${keys.length?`<h3 style="margin:24px 0 8px">Free Agent Offers Processed</h3>
+      <div class="scroll"><table class="offr"><tr><th class="num" style="width:50px">Pos</th><th>Team</th><th>Claim</th><th class="num" style="width:70px">Offer</th><th>Results</th></tr>${rows}</table></div>`:'<div class="muted" style="margin-top:14px">No waiver runs yet. Results show here after the first run.</div>'}
   </div>
   ${tid?`<div class="card"><h3>${esc(teamName(tid))}'s pending offers</h3>
     ${mine.length?`<table>${mine.map(c=>`<tr><td><b>${pn(c.add)}</b>${c.drop?`<div class="small muted">conditionally drop ${esc(c.drop)}</div>`:''}</td><td class="num"><b>$${c.bid}</b></td><td class="num">${canAct(tid)?`<button class="ghost sm" data-a="claim" data-n="${esc(c.add)}">Edit</button> <button class="ghost sm" data-a="cancelClaim" data-id="${c.id}">Cancel</button>`:''}</td></tr>`).join('')}</table>`:'<div class="muted small">No pending offers.</div>'}</div>`:''}`;
