@@ -431,8 +431,9 @@ function tcEventNo(t){if(!t)return null;if(t.tcId)return String(t.tcId);
 function tcLiveTour(n){return allTours().filter(t=>used(t)&&t.status!=='final'&&started(t)).find(t=>{const f=fieldOf(t);return f?f.has(n):scoreLookup(t).has(n);})||null;}
 function tcUrl(t,n){const no=tcEventNo(t);if(!no)return null;const yr=String(t.date||'').slice(0,4)||String(new Date().getFullYear());
   const base=`https://tourcast.pgatour.com/tourcast.html?id=R${yr}${no}`;const pid=TC.players&&TC.players.get(n);if(!pid)return base;
-  const hp=lookup(t.holes||{}).get(n)||0;const rd=Math.min(4,Math.floor(Math.max(0,hp-1)/18)+1);const thru=hp?((hp-1)%18)+1:1;
-  return `${base}#/hole-view?pid=${pid}&round=${rd}&hole=${thru}&gv=false`;}
+  const lp=LIVE.posEv===t.id&&LIVE.pos?LIVE.pos.get(n):null;
+  if(!lp)return `${base}#/hole-view?pid=${pid}&round=1&hole=1&gv=false`;
+  return `${base}#/hole-view?pid=${pid}&round=${lp.r}&hole=${lp.h}&gv=false`;}
 function tcLink(t,n,label){const u=t&&tcUrl(t,n);return u?`<a href="${esc(u)}" target="_blank" rel="noopener" title="Watch ${esc(n)} on PGA TOUR TOURCast" onclick="event.stopPropagation()">${label}</a>`:label;}
 function holesLeft(t,n){const v=scoreLookup(t).get(n);if(v==='MC')return 0;const hp=lookup(t.holes||{}).get(n);if(hp===undefined)return t.status==='final'?0:72;return Math.max(0,72-hp);}
 function teamHolesLeft(t,row){return row.starters.filter(s=>!s.empty).reduce((a,s)=>a+holesLeft(t,s.name),0);}
@@ -694,6 +695,11 @@ async function livePoll(){
     const state=e.status?.type?.state; // pre | in | post
     const holesOf=c=>(c.linescores||[]).reduce((a,r)=>a+((r.linescores||[]).length),0);
     const cut=cs.some(c=>((c.linescores||[])[2]?.linescores||[]).length>0);
+    const pos={};
+    for(const c of cs){const n=c.athlete?.displayName;if(!n)continue;const L=c.linescores||[];let ri=-1;for(let i=0;i<L.length;i++)if((L[i].linescores||[]).length)ri=i;
+      if(ri<0)continue;const hs=L[ri].linescores.map(h=>+h.period).filter(Boolean);const last=hs[hs.length-1];
+      pos[n]={r:ri+1,h:hs.length>=18?last:(last%18)+1};}
+    LIVE.pos=lookup(pos);LIVE.posEv=t.id;
     const scores={},holes={};let worst=null;
     for(const c of cs){const n=c.athlete?.displayName;if(!n)continue;const h=holesOf(c);if(h>0||state==='post')holes[n]=h;
       if(h===0&&state!=='post')continue;
