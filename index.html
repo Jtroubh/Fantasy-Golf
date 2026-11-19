@@ -210,6 +210,11 @@ pre.msg{white-space:pre-wrap;background:#fff;border:1px solid var(--line);border
   .pc-head h2{font-size:22px}
   .tc-ev{display:none}
 }
+
+.tc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:nowrap}
+.tc-top b{min-width:0}
+.tc-badge{flex:none}
+.badge.sig{background:#e6eefb;color:#1f4f9a}
 </style>
 </head>
 <body>
@@ -1533,8 +1538,8 @@ function viewTours(){
   return `
   <div class="card"><h2 style="margin-bottom:12px">League schedule <span class="muted small">${all.length} event${all.length===1?'':'s'}</span></h2>
   ${all.length?`<div class="tcards">${all.map(t=>{const r=t.status==='final'?computeTour(t):null;const w=r?.ranked.find(x=>x.place===1);return `<div class="tcard ${t.id===UI.tour?'sel':''}" data-a="openTour" data-id="${t.id}">
-     <div class="row" style="justify-content:space-between"><b>${esc(t.name)}</b>${statusBadge(t)}</div>
-     <div class="muted small">${esc(fmtDates(t))}${t.major?' · <span class="badge major">Major</span>':''}</div>
+     <div class="tc-top"><b>${esc(t.name)}</b><span class="tc-badge">${statusBadge(t)}</span></div>
+     <div class="muted small">${esc(fmtDates(t))}${t.major?' · <span class="badge major">Major</span>':isSig(t)?' · <span class="badge sig">Signature</span>':''}</div>
      <div class="small" style="margin-top:6px">${w?`Winner: <b>${esc(teamName(w.tid))}</b> (${fmt(w.total)})`:`1st: ${tourPts(t)[0]} pts`}</div></div>`}).join('')}</div>`:'<div class="muted">No events picked yet.'+(isComm?' Choose events from the PGA Tour schedule below.':' The commissioner picks them from the PGA Tour schedule.')+'</div>'}
   </div>
   ${sel?tourDetail(sel):''}
