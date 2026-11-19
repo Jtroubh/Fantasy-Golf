@@ -83,7 +83,10 @@ main{max-width:1180px;margin:0 auto;padding:22px}
   th{font-size:10px!important}
   .lu tr:not(:has(td[colspan])) > :nth-child(1),
   .lu tr:not(:has(td[colspan])) > :nth-child(5),
-  .lu tr:not(:has(td[colspan])) > :nth-child(6){display:none}
+  .lu tr:not(:has(td[colspan])) > :nth-child(6),
+  .lu tr:not(:has(td[colspan])) > :nth-child(9),
+  .lu tr:not(:has(td[colspan])) > :nth-child(11),
+  .lu tr.grp{display:none}
   .lu td:nth-child(2) b{font-size:13px}
   .lu .badge{font-size:9px;padding:2px 5px}
   button.sm,.btn.sm{padding:5px 9px;font-size:12px}
@@ -173,6 +176,8 @@ pre.msg{white-space:pre-wrap;background:#fff;border:1px solid var(--line);border
 .chk.out{opacity:.5}
 .sched td{padding:6px 8px}
 .kpis .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:600}
+.lu .sea1{border-left:2px solid var(--line)}
+.lu tr.grp th{font-size:11px;letter-spacing:.8px;border-bottom:1px solid var(--line);padding-bottom:2px}
 </style>
 </head>
 <body>
@@ -1319,16 +1324,21 @@ function viewMyTeam(forTid){
   else if(locked){starters=lineupNames(lt,tid);bench=ros.map(r=>r.name).filter(n=>!starters.includes(n));}
   else{starters=ros.map(r=>r.name).filter(n=>UI.lineSel.has(n));bench=ros.map(r=>r.name).filter(n=>!UI.lineSel.has(n));}
   const canEdit=editable&&!locked;
-  const head=`<tr><th>Slot</th><th>Golfer</th><th>Action</th><th>Tee time</th><th class="num">Odds</th><th class="num">OWGR</th><th class="num">Score</th></tr>`;
+  const yr=String(lt.date||'').slice(0,4)||new Date().getFullYear();
+  const sea=n=>{const L=lrOf(n),m=mvp[n],last=[...playerLog(n)].filter(r=>r.hasScores&&r.fin).pop();
+    const lastTxt=!last?'<span class="muted">–</span>':last.mc?'<span class="muted">MC</span>':last.pos?(last.tied?'T':'')+last.pos:'<span class="muted">–</span>';
+    return `<td class="num sea1">${L&&L.rank?L.rank:'<span class="muted">–</span>'}</td><td class="num">${L?L.ev:0}</td><td class="num ${L?(L.avg>0?'under':L.avg<0?'over':''):''}">${L?fmtVs(L.avg):'<span class="muted">–</span>'}</td><td class="num">${m?fp(m.pts):'0'}</td><td class="num" title="${last?esc(last.t.name):''}">${lastTxt}</td>`;};
+  const seaE='<td class="sea1"></td><td></td><td></td><td></td><td></td>';
+  const head=`<tr class="grp"><th colspan="3"></th><th colspan="4" class="sea0" style="text-align:center">THIS WEEK</th><th colspan="5" class="sea1" style="text-align:center">${yr} SEASON</th></tr><tr><th>Slot</th><th>Golfer</th><th>Action</th><th>Tee time</th><th class="num">Odds</th><th class="num">OWGR</th><th class="num">Score</th><th class="num sea1" title="League rank: average strokes beaten vs the field in league events">PRK</th><th class="num" title="League events played">EV</th><th class="num" title="Average strokes beaten vs the field per event">AVG</th><th class="num" title="MVP points this season">MVP</th><th class="num" title="Finish in his last completed league event">LAST</th></tr>`;
   const mv=UI.moveFrom&&UI.lineSel&&ros.some(r=>r.name===UI.moveFrom)?UI.moveFrom:null,isStarter=x=>UI.lineSel.has(x);
   const rowS=(n,i)=>{const c=cell(n);return `<tr class="${cs[n]&&cs[n].counts?'counts':''}"><td class="small muted">${i+1}</td><td><div class="plc">${av(n,30)}<b>${pn(n)}</b></div></td>
-    <td style="white-space:nowrap">${canEdit&&!c.lk?(mv===n?`<button class="sm" data-a="lineMove" data-n="${esc(n)}">Cancel</button> <button class="ghost sm" data-a="lineBench" data-n="${esc(n)}">To bench</button>`:mv&&!isStarter(mv)?`<button class="sm" style="background:#2e7d32" data-a="lineSwap" data-n="${esc(n)}">Here</button>`:`<button class="ghost sm" data-a="lineMove" data-n="${esc(n)}">Move</button>`):''}</td><td>${c.status}</td><td class="num">${c.o?`<span class="odds">${esc(c.o)}</span>`:''}</td><td class="num">${rkTag(n)}</td>${scoreTd(n)}</tr>`;};
+    <td style="white-space:nowrap">${canEdit&&!c.lk?(mv===n?`<button class="sm" data-a="lineMove" data-n="${esc(n)}">Cancel</button> <button class="ghost sm" data-a="lineBench" data-n="${esc(n)}">To bench</button>`:mv&&!isStarter(mv)?`<button class="sm" style="background:#2e7d32" data-a="lineSwap" data-n="${esc(n)}">Here</button>`:`<button class="ghost sm" data-a="lineMove" data-n="${esc(n)}">Move</button>`):''}</td><td>${c.status}</td><td class="num">${c.o?`<span class="odds">${esc(c.o)}</span>`:''}</td><td class="num">${rkTag(n)}</td>${scoreTd(n)}${sea(n)}</tr>`;};
   const empties=Math.max(0,STARTERS()-starters.length);
-  const rowE=i=>`<tr><td class="small muted">${starters.length+i+1}</td><td class="muted">No golfer picked</td><td></td><td></td><td></td><td></td><td class="num small muted">${hasSc?'MC ('+fmt(cutScore(lt))+')':''}</td></tr>`;
+  const rowE=i=>`<tr><td class="small muted">${starters.length+i+1}</td><td class="muted">No golfer picked</td><td></td><td></td><td></td><td></td><td class="num small muted">${hasSc?'MC ('+fmt(cutScore(lt))+')':''}</td>${seaE}</tr>`;
   const full=starters.length>=STARTERS();
   const rowB=n=>{const c=cell(n),dropLock=teedOff(n);return `<tr class="${c.f===null?'dim':''}"><td class="small muted">Bench</td><td><div class="plc">${av(n,30)}<b>${pn(n)}</b></div></td>
     <td style="white-space:nowrap">${canEdit&&!c.lk&&c.f!==null?(mv===n?`<button class="sm" data-a="lineMove" data-n="${esc(n)}">Cancel</button>`:mv&&isStarter(mv)?`<button class="sm" style="background:#2e7d32" data-a="lineSwap" data-n="${esc(n)}">Here</button>`:`<button class="ghost sm" data-a="lineMove" data-n="${esc(n)}">Move</button>`):''}</td>
-    <td>${c.status}</td><td class="num">${c.o?`<span class="odds">${esc(c.o)}</span>`:''}</td><td class="num">${rkTag(n)}</td>${scoreTd(n)}</tr>`;};
+    <td>${c.status}</td><td class="num">${c.o?`<span class="odds">${esc(c.o)}</span>`:''}</td><td class="num">${rkTag(n)}</td>${scoreTd(n)}${sea(n)}</tr>`;};
   const saved=!!S.lineups[lt.id+'__'+tid];
   const eo=eventOdds(lt);
   const info=[fin?'Final results':locked?'Lineups locked':lt.lockOff?'Lineups open for this event (commissioner setting)':'Each golfer locks 🔒 at his Round 1 tee time',
@@ -1338,10 +1348,10 @@ function viewMyTeam(forTid){
     <div class="row" style="justify-content:space-between;margin:14px 0 6px"><div><h3 style="margin:0">${esc(lt.name)} ${lt.major?'<span class="badge major">Major</span>':''} ${statusBadge(lt)}</h3><div class="small muted">${esc(fmtDates(lt))} · ${info}</div></div>
       ${canEdit?`<div class="row" style="gap:6px"><span class="small muted">${starters.length}/${STARTERS()} starting · ${UI.lineSaving?'Saving…':UI.lineSavedAt&&Date.now()-UI.lineSavedAt<8000?'✓ Saved':'Changes save automatically'}</span><button class="ghost sm" data-a="suggestLineup" title="Fills your lineup with the best 6 golfers playing this week: golfers in the field first, skipping anyone injured, suspended or not eligible, then by best DraftKings odds, then world ranking. Locked golfers stay put. Saves automatically.">Suggest</button></div>`:''}</div>
     <div class="scroll"><table class="lu">
-      <tr><td colspan="7" style="background:var(--sand);font-weight:700;font-size:12px;letter-spacing:.6px">STARTERS <span class="muted" style="font-weight:400">· best ${COUNT()} scores count</span></td></tr>${head}
+      <tr><td colspan="12" style="background:var(--sand);font-weight:700;font-size:12px;letter-spacing:.6px">STARTERS <span class="muted" style="font-weight:400">· best ${COUNT()} scores count</span></td></tr>${head}
       ${starters.map(rowS).join('')}${Array.from({length:empties},(_,i)=>rowE(i)).join('')}
-      <tr><td colspan="7" style="background:var(--sand);font-weight:700;font-size:12px;letter-spacing:.6px">BENCH${fin&&resT?' <span class="muted" style="font-weight:400">· current roster</span>':''}</td></tr>
-      ${bench.map(rowB).join('')||'<tr><td colspan="7" class="muted small">Nobody on the bench.</td></tr>'}
+      <tr><td colspan="12" style="background:var(--sand);font-weight:700;font-size:12px;letter-spacing:.6px">BENCH${fin&&resT?' <span class="muted" style="font-weight:400">· current roster</span>':''}</td></tr>
+      ${bench.map(rowB).join('')||'<tr><td colspan="12" class="muted small">Nobody on the bench.</td></tr>'}
     </table></div>
     <div class="small muted" style="margin-top:8px">${ros.length}/${ROSTER()} golfers on roster${WV()?` · Waiver budget $${wvLeft(tid)} of $${WV().budget}`:''}</div></div>`;
   const mvpTop=Object.values(mvp).filter(m=>m.for[tid]).map(m=>({n:m.name,v:m.for[tid]})).sort((a,b)=>b.v-a.v).slice(0,5);
