@@ -1,0 +1,20 @@
+name: Hole difficulty (PGA TOUR course stats)
+on:
+  schedule:
+    - cron: '7,37 11-23 * * 4,5,6,0,1'   # every 30 min, ~7am-7pm ET, Thu-Mon
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: { group: data-commits, cancel-in-progress: false }
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: mkdir -p data && python3 tools/update_holes.py
+      - name: Commit if changed
+        run: |
+          git config user.name "league-bot"
+          git config user.email "league-bot@users.noreply.github.com"
+          git add data/holes.json
+          git diff --cached --quiet || (git commit -m "Update hole difficulty" && git pull --rebase && git push)
