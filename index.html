@@ -774,6 +774,15 @@ async function livePoll(){
       if(ri<0)continue;const hs=L[ri].linescores.map(h=>+h.period).filter(Boolean);const last=hs[hs.length-1];
       pos[n]={r:ri+1,h:hs.length>=18?last:(last%18)+1};}
     LIVE.pos=lookup(pos);LIVE.posEv=t.id;
+    // per-golfer hole detail for projections + ESPN field hole averages (fallback difficulty)
+    const det={},hsum={},hcnt={};let fTo=0,fH=0;
+    const tp=v=>{const d=v&&v.scoreType&&v.scoreType.displayValue;return d==='E'?0:parseInt(d,10);};
+    for(const c of cs){const n=c.athlete?.displayName;if(!n)continue;const L=c.linescores||[];let ri=-1,hp=0,to=0;const cur=[];
+      L.forEach((r,i)=>{(r.linescores||[]).forEach(h=>{const x=tp(h),hn=+h.period;if(isNaN(x)||!hn)return;hp++;to+=x;hsum[hn]=(hsum[hn]||0)+x;hcnt[hn]=(hcnt[hn]||0)+1;});if((r.linescores||[]).length)ri=i;});
+      if(ri>=0)(L[ri].linescores||[]).forEach(h=>{const x=tp(h),hn=+h.period;if(hn&&!isNaN(x))cur.push([hn,(+h.value)-x]);});
+      det[n]={ri:ri+1,cur,hp,to};if(hp){fTo+=to;fH+=hp;}}
+    LIVE.det=lookup(det);LIVE.detEv=t.id;LIVE.fieldRate=fH?fTo/fH:0;
+    LIVE.havg={};for(const h in hsum)if(hcnt[h]>=5)LIVE.havg[h]=hsum[h]/hcnt[h];
     const scores={},holes={};let worst=null;
     for(const c of cs){const n=c.athlete?.displayName;if(!n)continue;const h=holesOf(c);if(h>0||state==='post')holes[n]=h;
       if(h===0&&state!=='post')continue;
@@ -795,7 +804,7 @@ async function livePoll(){
     }
   }catch(err){}finally{LIVE.busy=false;}
 }
-function startLive(){if(LIVE.timer)return;livePoll();LIVE.timer=setInterval(livePoll,30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)livePoll();});}
+function startLive(){if(LIVE.timer)return;loadHoles();setInterval(loadHoles,10*60*1000);livePoll();LIVE.timer=setInterval(livePoll,30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)livePoll();});}
 
 async function init(){
   render();
@@ -1301,7 +1310,35 @@ function bookmarkCard(){
   <p class="small muted">Then any time: open <b>espn.com</b>, click the bookmark, and a new tab opens this league with the latest scores saved for everyone.</p>
   <textarea readonly style="width:100%;height:60px;font-size:11px">${esc(BM_CODE)}</textarea></div>`;
 }
+
+// ---------- projected scores ----------
+// Projected final = current to-par + expected to-par on every hole still to play.
+// Expected per hole = PGA TOUR scoring average this week on that hole (data/holes.json) minus par,
+// adjusted by how the golfer is playing vs the field: (his to-par per hole - field per hole) x holes/(holes+54).
+const HOLES={data:null};
+function loadHoles(){fetch('data/holes.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():null).then(j=>{if(j){HOLES.data=j;scheduleRender();}}).catch(()=>{});}
+function holesFor(t){const H=HOLES.data;if(!H||!H.courses)return null;const no=tcEventNo(t);
+  if(no&&String(H.tournamentId||'').slice(5)===String(no))return H;
+  const a=normEv(t.name),b=normEv(H.name||'');return a&&b&&(a.includes(b)||b.includes(a))?H:null;}
+function projOf(t,n){
+  const sc=lookup(t.scores||{}).get(n);if(typeof sc!=='number')return sc;
+  if(t.status==='final')return sc;
+  const d=LIVE.detEv===t.id&&LIVE.det?LIVE.det.get(n):null;if(!d)return sc;
+  const R=+t.rounds||4,H=holesFor(t),cs=H?H.courses.filter(c=>c.all&&Object.keys(c.all).length):[];
+  const host=cs.find(c=>c.host)||cs[0]||null;
+  // which course is he on this round? match pars of holes played (multi-course weeks)
+  let cur=host;if(cs.length>1&&d.cur.length){let best=-1;for(const c of cs){const m=d.cur.filter(([h,p])=>c.all[h]&&c.all[h][0]===p).length;if(m>best||(m===best&&c.host)){best=m;cur=c;}}}
+  const diff=(c,h)=>{if(c&&c.all[h])return c.all[h][1]-c.all[h][0];return LIVE.havg&&LIVE.havg[h]!=null?LIVE.havg[h]:0;};
+  let exp=0,left=0;
+  if(d.ri>=1&&d.cur.length<18){const done=new Set(d.cur.map(x=>x[0]));for(let h=1;h<=18;h++)if(!done.has(h)){exp+=diff(cur,h);left++;}}
+  const future=Math.max(0,R-Math.max(d.ri,0)-(d.ri>=1&&d.cur.length<18?0:0));
+  for(let r=0;r<future;r++)for(let h=1;h<=18;h++){exp+=diff(host,h);left++;}
+  const adj=d.hp?((d.to/d.hp)-(LIVE.fieldRate||0))*(d.hp/(d.hp+54)):0;
+  return sc+exp+adj*left;}
+function projTour(t){const sc={};for(const [n,v] of Object.entries(t.scores||{}))sc[n]=projOf(t,n);return {...t,scores:sc};}
+function projReady(t){return t.status!=='final'&&LIVE.detEv===t.id&&!!LIVE.det;}
 function liveCard(t){
+  const pj=projReady(t);const rp=pj?computeTour(projTour(t)):null;const pOf=tid=>rp?(rp.rows.find(y=>y.tid===tid)||{}):{};
   const r=computeTour(t),{team}=season(),pk=poStageKey(t.id),po=pk?playoffState():null,sg=po&&po.stages.find(s=>s.key===pk);
   const fin=t.status==='final';
   const base=tid=>{if(pk){if(po&&!po.bracket&&sg&&sg.cum)return (sg.cum[tid]||0)-((r.rows.find(x=>x.tid===tid)||{}).pts||0);return null;}return (team[tid]?.pts||0)-(fin?((r.rows.find(x=>x.tid===tid)||{}).pts||0):0);};
@@ -1309,21 +1346,23 @@ function liveCard(t){
   return `<div class="card"><div class="row" style="justify-content:space-between"><div><h3>${esc(t.name)} ${fin?'<span class="badge final">Final</span>':'<span class="badge live">Live</span>'} ${t.major?'<span class="badge major">Major</span>':''}${pk?' <span class="badge major">Playoffs</span>':''}</h3><div class="small muted">${esc(fmtDates(t))}${upd}</div></div><div class="row" style="gap:6px"><a class="btn ghost sm" href="https://www.espn.com/golf/leaderboard" target="_blank" rel="noopener">ESPN live ↗</a><button class="btn ghost sm" data-a="sbAll" data-id="${t.id}">Expand all</button><a class="btn ghost sm" href="#tournaments" data-a="openTour" data-id="${t.id}">Full leaderboard</a></div></div>
   ${!fin?`<div class="small muted" style="margin:6px 0">Live from ESPN — scores refresh every 30 seconds while this page is open.${LIVE.at?' Last update '+new Date(LIVE.at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit'})+'.':''}</div>`:''}
   ${r.hasScores?(()=>{const so=UI.sbSort||{k:'pos',d:1};
-    const val={pos:x=>x.place??1e9,score:x=>x.total??1e9,holes:x=>teamHolesLeft(t,x)||0,pts:x=>x.pts||0,season:x=>{const b=base(x.tid);return b==null?x.pts||0:b+(x.pts||0);}};
+    const PP=x=>rp?(pOf(x.tid).pts||0):(x.pts||0);
+    const val={pos:x=>x.place??1e9,score:x=>x.total??1e9,proj:x=>pOf(x.tid).total??x.total??1e9,holes:x=>teamHolesLeft(t,x)||0,pts:x=>PP(x),season:x=>{const b=base(x.tid);return b==null?PP(x):b+PP(x);}};
     const list=[...r.ranked].map((x,i)=>[x,i]).sort((A,B)=>{const d=(val[so.k](A[0])-val[so.k](B[0]))*so.d;return d||A[1]-B[1];}).map(a=>a[0]);
     const th=(k,label,cls)=>`<th class="${cls||''} sortable" data-a="sbSort" data-n="${k}" style="cursor:pointer;user-select:none" title="Sort by ${label.toLowerCase()}">${label}${so.k===k?(so.d>0?' ▲':' ▼'):''}</th>`;
-    return `<table><tr>${th('pos','Pos')}<th>Team</th>${th('score','Score','num')}${th('holes','Holes left','num')}${th('pts',fin?'Pts':'Proj. pts','num')}${th('season',fin?'Season':'Proj. season','num')}</tr>
-  ${list.map(x=>{const b=base(x.tid),open=UI.sbOpen.has(t.id+'|'+x.tid);return `<tr class="sbrow" data-a="sbTog" data-id="${t.id}" data-n="${x.tid}" style="cursor:pointer"><td>${x.place?(x.tied?'T':'')+x.place:'–'}</td><td><span class="sbcar">${open?'▾':'▸'}</span> <b>${esc(teamName(x.tid))}</b>${x.tid===myTeam()?' <span class="badge me">you</span>':''}</td><td class="num ${scls(x.total)}">${fmt(x.total)}${x.partial?'*':''}</td><td class="num">${(()=>{const hl=teamHolesLeft(t,x);return hl?hl:'<span class="muted">Done</span>';})()}</td><td class="num">${fp(x.pts)}</td><td class="num"><b>${b==null?'—':fp(b+x.pts)}</b>${b!=null?` <span class="small muted">(${fp(b)} + ${fp(x.pts)})</span>`:''}</td></tr>${open?sbDetail(t,x):''}`;}).join('')}</table>`;})():'<div class="muted">Waiting for scores.</div>'}</div>`;
+    return `<table><tr>${th('pos','Pos')}<th>Team</th>${th('score','Score','num')}${rp?th('proj','Proj. score','num'):''}${th('holes','Holes left','num')}${th('pts',fin?'Pts':'Proj. pts','num')}${th('season',fin?'Season':'Proj. season','num')}</tr>
+  ${list.map(x=>{const b=base(x.tid),open=UI.sbOpen.has(t.id+'|'+x.tid);return `<tr class="sbrow" data-a="sbTog" data-id="${t.id}" data-n="${x.tid}" style="cursor:pointer"><td>${x.place?(x.tied?'T':'')+x.place:'–'}</td><td><span class="sbcar">${open?'▾':'▸'}</span> <b>${esc(teamName(x.tid))}</b>${x.tid===myTeam()?' <span class="badge me">you</span>':''}</td><td class="num ${scls(x.total)}">${fmt(x.total)}${x.partial?'*':''}</td>${rp?(()=>{const q=pOf(x.tid).total;return `<td class="num ${q==null?'':scls(Math.round(q))}" title="Projected final team score">${q==null?'–':fmt(Math.round(q))}</td>`;})():''}<td class="num">${(()=>{const hl=teamHolesLeft(t,x);return hl?hl:'<span class="muted">Done</span>';})()}</td>${(()=>{const P=PP(x);return `<td class="num">${fp(P)}</td><td class="num"><b>${b==null?'—':fp(b+P)}</b>${b!=null?` <span class="small muted">(${fp(b)} + ${fp(P)})</span>`:''}</td>`;})()}</tr>${open?sbDetail(t,x,rp?projTour(t):null):''}`;}).join('')}</table>${rp?`<div class="small muted" style="margin-top:8px">Proj. score: each golfer's current score plus the rest of his holes at this week's PGA TOUR scoring average for each hole${holesFor(t)?'':' (ESPN field averages until PGA TOUR hole stats load)'}, nudged by how he's playing vs the field. Proj. pts use the projected finish.</div>`:''}`;})():'<div class="muted">Waiting for scores.</div>'}</div>`;
 }
-function sbDetail(t,x){
-  const mc=cutScore(t),fin=t.status==='final';
+function sbDetail(t,x,tp){
+  const mc=cutScore(t),fin=t.status==='final';const PJ=tp?lookup(tp.scores||{}):null;
+  const pjTd=n=>{if(!PJ)return '';const v=n?PJ.get(n):null;return `<td class="num ${typeof v==='number'?scls(Math.round(v)):''}">${typeof v==='number'?fmt(Math.round(v)):v==='MC'?'<span class="muted">MC</span>':'<span class="muted">–</span>'}</td>`;};
   const rows=x.starters.map(s=>{
-    if(s.empty)return `<tr><td class="muted">No golfer picked</td><td></td><td class="num ${scls(s.eff)}">${s.eff==null?'–':fmt(s.eff)} <span class="small muted">(MC)</span></td><td class="num muted">—</td><td>${s.counts?'<span class="badge final">counts</span>':''}</td><td class="num muted">0</td></tr>`;
+    if(s.empty)return `<tr><td class="muted">No golfer picked</td><td></td><td class="num ${scls(s.eff)}">${s.eff==null?'–':fmt(s.eff)} <span class="small muted">(MC)</span></td>${PJ?'<td class="num muted">—</td>':''}<td class="num muted">—</td><td>${s.counts?'<span class="badge final">counts</span>':''}</td><td class="num muted">0</td></tr>`;
     const hl=holesLeft(t,s.name),hp=72-hl;
     const sc=s.raw==='MC'?`<span class="${scls(mc)}">${fmt(mc)}</span> <span class="small muted">(MC)</span>`:s.raw==null?'<span class="muted">–</span>':`<span class="${scls(s.raw)}">${fmt(s.raw)}</span>`;
     const hk=lookup(t.holes||{}).get(s.name);const st=s.raw==='MC'?'<span class="muted">Cut</span>':hk===undefined?(fin?'<span class="muted">F</span>':(s.raw==null?'<span class="muted">Not started</span>':'<span class="muted">–</span>')):hl===0?'<span class="muted">F</span>':hp===0?'<span class="muted">Not started</span>':`${hl} <span class="small muted">(R${Math.ceil(hp/18)} ${hp%18?'thru '+hp%18:'done'})</span>`;
-    return `<tr${s.counts?'':' style="opacity:.6"'}><td><div class="plc">${av(s.name,26)}${fin?esc(s.name):tcLink(t,s.name,esc(s.name)+' <span class="small muted">📺</span>')}${rkOf(s.name)?.am?' <span class="badge am">AM</span>':''}</div></td><td>${rkTag(s.name)}</td><td class="num">${sc}</td><td class="num">${st}</td><td>${s.counts?'<span class="badge final">counts</span>':''}</td><td class="num"><b>${s.counts?fp(s.mvp||0):'<span class="muted">0</span>'}</b></td></tr>`;}).join('');
-  return `<tr class="sbdet"><td></td><td colspan="5" style="padding:4px 0 12px"><table class="inner" style="width:100%;font-size:.92em;background:var(--bg2,rgba(0,0,0,.03));border-radius:8px"><tr><th>Golfer</th><th>OWGR</th><th class="num">Score</th><th class="num">${fin?'Status':'Holes left'}</th><th>Top ${COUNT()}</th><th class="num">${fin?'MVP pts':'Proj. MVP'}</th></tr>${rows}</table></td></tr>`;
+    return `<tr${s.counts?'':' style="opacity:.6"'}><td><div class="plc">${av(s.name,26)}${fin?esc(s.name):tcLink(t,s.name,esc(s.name)+' <span class="small muted">📺</span>')}${rkOf(s.name)?.am?' <span class="badge am">AM</span>':''}</div></td><td>${rkTag(s.name)}</td><td class="num">${sc}</td>${pjTd(s.name)}<td class="num">${st}</td><td>${s.counts?'<span class="badge final">counts</span>':''}</td><td class="num"><b>${s.counts?fp(s.mvp||0):'<span class="muted">0</span>'}</b></td></tr>`;}).join('');
+  return `<tr class="sbdet"><td></td><td colspan="${PJ?6:5}" style="padding:4px 0 12px"><table class="inner" style="width:100%;font-size:.92em;background:var(--bg2,rgba(0,0,0,.03));border-radius:8px"><tr><th>Golfer</th><th>OWGR</th><th class="num">Score</th>${PJ?'<th class="num" title="Projected final score">Proj.</th>':''}<th class="num">${fin?'Status':'Holes left'}</th><th>Top ${COUNT()}</th><th class="num">${fin?'MVP pts':'Proj. MVP'}</th></tr>${rows}</table></td></tr>`;
 }
 function _oldLiveCard(t){
   const r=computeTour(t);
@@ -2041,7 +2080,7 @@ const ACTIONS={
   player(el,id,n){showPlayer(n);},
   sbTog(el,id,n){const k=id+'|'+n;UI.sbOpen.has(k)?UI.sbOpen.delete(k):UI.sbOpen.add(k);render();},
   faSort(el,id){const def={name:1,tee:1,owgr:1,odds:1,score:1,prk:1,ev:1,tot:1,avg:1,mvp:1,last:1};const c=UI.faSort&&typeof UI.faSort==='object'?UI.faSort:{k:'def',d:1};UI.faSort=c.k===id?(c.d>0?{k:id,d:-1}:{k:'def',d:1}):{k:id,d:def[id]||1};UI.faLimit=150;render();},
-  sbSort(el,id,n){const def={pos:1,score:1,holes:-1,pts:-1,season:-1};const c=UI.sbSort||{k:'pos',d:1};UI.sbSort=c.k===n?{k:n,d:-c.d}:{k:n,d:def[n]||1};render();},
+  sbSort(el,id,n){const def={pos:1,score:1,proj:1,holes:-1,pts:-1,season:-1};const c=UI.sbSort||{k:'pos',d:1};UI.sbSort=c.k===n?{k:n,d:-c.d}:{k:n,d:def[n]||1};render();},
   sbAll(el,id){const keys=computeTour(S.tours[id]).ranked.map(x=>id+'|'+x.tid);const all=keys.every(k=>UI.sbOpen.has(k));keys.forEach(k=>all?UI.sbOpen.delete(k):UI.sbOpen.add(k));render();},
   openTour(el,id){UI.tour=id;if(tab!=='tournaments'){tab='tournaments';location.hash='tournaments';}render();setTimeout(()=>{const d=document.querySelectorAll('.card')[isComm?2:1];d&&d.scrollIntoView({behavior:'smooth',block:'start'})},30);},
   async createTour(){
