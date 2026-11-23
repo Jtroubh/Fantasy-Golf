@@ -1,11 +1,5 @@
 {
   "items": {
-    "aaron-wise": {
-      "date": "Nov 2026",
-      "name": "Aaron Wise",
-      "note": "Withdrew from the World Wide Technology Championship with a back injury but is in the RSM Classic field this week.",
-      "status": "note"
-    },
     "abraham-ancer": {
       "date": "Nov 2026",
       "name": "Abraham Ancer",
@@ -51,7 +45,7 @@
     "ben-kohles": {
       "date": "Nov 2026",
       "name": "Ben Kohles",
-      "note": "Finished runner-up at the Austin Championship last week.",
+      "note": "Finished runner-up at the Austin Championship in mid-November.",
       "status": "note"
     },
     "branden-grace": {
@@ -168,6 +162,12 @@
       "note": "LIV Golf shut down in Nov 2026. Former LIV players are barred from regular PGA Tour events until a one-year ban from their last LIV start runs out (likely around Aug 2027). He'll likely play the DP World or Asian Tour, and majors only if he qualifies.",
       "status": "nopga"
     },
+    "gary-woodland": {
+      "date": "Nov 2026",
+      "name": "Gary Woodland",
+      "note": "Had arthroscopic knee surgery and withdrew from the Hero World Challenge. He expects to be hitting balls again within a few weeks.",
+      "status": "injured"
+    },
     "harold-varner-iii": {
       "date": "Nov 2026",
       "name": "Harold Varner III",
@@ -181,10 +181,10 @@
       "status": "nopga"
     },
     "j-j-spaun": {
-      "date": "Aug 2026",
+      "date": "Nov 2026",
       "name": "J.J. Spaun",
-      "note": "Withdrew from the Tour Championship after five holes with a shoulder injury; said it was improving. Won the 2026 Valero Texas Open.",
-      "status": "injured"
+      "note": "Back from the shoulder injury that ended his 2026 season at the Tour Championship; he is in the Hero World Challenge field in December.",
+      "status": "note"
     },
     "jake-knapp": {
       "date": "Aug 2026",
@@ -213,7 +213,7 @@
     "jon-rahm": {
       "date": "Nov 2026",
       "name": "Jon Rahm",
-      "note": "LIV Golf shut down in Nov 2026. Former LIV players are barred from regular PGA Tour events until a one-year ban from their last LIV start runs out (likely around Aug 2027). Rahm is leaving LIV and plans to play the DP World Tour in 2027; he can still play the majors.",
+      "note": "LIV Golf shut down in Nov 2026. Former LIV players are barred from regular PGA Tour events until a one-year ban from their last LIV start runs out (likely around Aug 2027). The Tour is due to discuss Rahm's possible reinstatement in early December, though its CEO says no new return program is planned; he has DP World Tour status for 2027 and can play the majors.",
       "status": "majors"
     },
     "jose-luis-ballester": {
@@ -261,7 +261,7 @@
     "ludvig-aberg": {
       "date": "Nov 2026",
       "name": "Ludvig Aberg",
-      "note": "Withdrew from the RSM Classic before the start with no reason given; Nick Hardy took his spot. He ends 2026 without a PGA Tour win despite finishing fourth in the FedEx Cup.",
+      "note": "Pulled out of the RSM Classic after tweaking his back; an MRI showed nothing serious and he chose to rest it. He ends 2026 without a PGA Tour win despite finishing fourth in the FedEx Cup.",
       "status": "note"
     },
     "luis-masaveu-roncal": {
@@ -275,6 +275,12 @@
       "name": "Marc Leishman",
       "note": "LIV Golf shut down in Nov 2026. Former LIV players are barred from regular PGA Tour events until a one-year ban from their last LIV start runs out (likely around Aug 2027). He'll likely play the DP World or Asian Tour, and majors only if he qualifies.",
       "status": "nopga"
+    },
+    "marco-penge": {
+      "date": "Nov 2026",
+      "name": "Marco Penge",
+      "note": "Won the weather-delayed RSM Classic on the first playoff hole of a four-man playoff for his first PGA Tour title.",
+      "status": "hot"
     },
     "martin-kaymer": {
       "date": "Nov 2026",
@@ -300,11 +306,23 @@
       "note": "Broke his elbow in a fall in late summer 2026; expected to miss several months.",
       "status": "injured"
     },
+    "max-greyserman": {
+      "date": "Nov 2026",
+      "name": "Max Greyserman",
+      "note": "Lost in a four-man playoff at the RSM Classic after finishing tied at 16 under.",
+      "status": "note"
+    },
     "michael-la-sasso": {
       "date": "Nov 2026",
       "name": "Michael La Sasso",
       "note": "LIV Golf shut down in Nov 2026. Former LIV players are barred from regular PGA Tour events until a one-year ban from their last LIV start runs out (likely around Aug 2027). He'll likely play the DP World or Asian Tour, and majors only if he qualifies.",
       "status": "nopga"
+    },
+    "michael-thorbjornsen": {
+      "date": "Nov 2026",
+      "name": "Michael Thorbjornsen",
+      "note": "Lost in a four-man playoff at the RSM Classic after finishing tied at 16 under.",
+      "status": "note"
     },
     "miguel-tabuena": {
       "date": "Nov 2026",
@@ -372,6 +390,12 @@
       "note": "LIV Golf shut down in Nov 2026. Former LIV players are barred from regular PGA Tour events until a one-year ban from their last LIV start runs out (likely around Aug 2027). He'll likely play the DP World or Asian Tour, and majors only if he qualifies.",
       "status": "nopga"
     },
+    "tiger-woods": {
+      "date": "Nov 2026",
+      "name": "Tiger Woods",
+      "note": "Has committed to play his Hero World Challenge in December, his first competitive start in two years.",
+      "status": "note"
+    },
     "tom-mckibbin": {
       "date": "Nov 2026",
       "name": "Tom McKibbin",
@@ -409,5 +433,5 @@
       "status": "nopga"
     }
   },
-  "updatedAt": 1795037344206
+  "updatedAt": 1795469283068
 }
