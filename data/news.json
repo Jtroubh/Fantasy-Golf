@@ -69,7 +69,7 @@
     "bryson-dechambeau": {
       "date": "Nov 2026",
       "name": "Bryson DeChambeau",
-      "note": "LIV Golf shut down in Nov 2026. Former LIV players are barred from regular PGA Tour events until a one-year ban from their last LIV start runs out (likely around Aug 2027). His 2027 plans are undecided: the DP World Tour has reportedly offered him full status, and he has floated playing just the majors plus YouTube. Counts only in majors for now.",
+      "note": "LIV Golf shut down in Nov 2026, and former LIV players are barred from regular PGA Tour events until their one-year ban runs out (likely around Aug 2027). He has signed on as a full-time DP World Tour member for 2027 and is exempt for the majors, so he counts only in majors for now.",
       "status": "majors"
     },
     "bubba-watson": {
@@ -433,5 +433,5 @@
       "status": "nopga"
     }
   },
-  "updatedAt": 1795469283068
+  "updatedAt": 1795555700448
 }
