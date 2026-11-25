@@ -150,6 +150,12 @@
       "note": "LIV Golf shut down in Nov 2026. Former LIV players are barred from regular PGA Tour events until a one-year ban from their last LIV start runs out (likely around Aug 2027). As a past major champion he can still play majors he's exempt for.",
       "status": "majors"
     },
+    "erik-van-rooyen": {
+      "date": "Nov 2026",
+      "name": "Erik van Rooyen",
+      "note": "Withdrew from the RSM Classic before the first round with a rib injury, which likely cost him conditional PGA Tour status for 2027. No recovery timeline has been given.",
+      "status": "injured"
+    },
     "eugenio-chacarra": {
       "date": "Nov 2026",
       "name": "Eugenio Chacarra",
@@ -433,5 +439,5 @@
       "status": "nopga"
     }
   },
-  "updatedAt": 1795555700448
+  "updatedAt": 1795642076462
 }
